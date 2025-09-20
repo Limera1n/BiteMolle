@@ -1,0 +1,13 @@
+/nbproject/
+/target/
+/Playlists/
+/test/
+*.json
+*.txt
+nb*.xml
+.idea/**
+*.iml
+config.txt
+*.jar
+/logs/
+build.sh
