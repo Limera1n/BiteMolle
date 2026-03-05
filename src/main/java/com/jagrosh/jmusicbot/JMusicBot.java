@@ -17,10 +17,10 @@
 package com.jagrosh.jmusicbot;
 
 import com.github.lalyos.jfiglet.FigletFont;
-import com.jagrosh.jdautilities.command.Command;
-import com.jagrosh.jdautilities.command.CommandClientBuilder;
-import com.jagrosh.jdautilities.command.SlashCommand;
-import com.jagrosh.jdautilities.commons.waiter.EventWaiter;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.Command;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandClientBuilder;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommand;
+import dev.cosgy.jmusicbot.framework.jdautilities.commons.waiter.EventWaiter;
 import com.jagrosh.jmusicbot.entities.Prompt;
 import com.jagrosh.jmusicbot.gui.DelegatingPrintStream;
 import com.jagrosh.jmusicbot.gui.GUI;
@@ -117,118 +117,29 @@ public class JMusicBot {
         // startup log
         Logger log = getLogger("Startup");
 
-        try {
-            System.out.println(FigletFont.convertOneLine("JMusicBot v" + OtherUtil.getCurrentVersion()) + "\n" + "by THOMZY");
-        } catch (IOException e) {
-            System.out.println("JMusicBot v" + OtherUtil.getCurrentVersion() + "\nby THOMZY");
-        }
-
-
-        // create prompt to handle startup
+        printBanner();
         Prompt prompt = new Prompt("JMusicBot", "Switching to nogui mode. You can manually start in nogui mode by including the flag -Dnogui=true.");
-        // check deprecated nogui mode (new way of setting it is -Dnogui=true)
-        for (String arg : args)
-            if ("-nogui".equalsIgnoreCase(arg)) {
-                prompt.alert(Prompt.Level.WARNING, "GUI", "-nogui flag is deprecated. "
-                        + "Please use the -Dnogui=true flag before the jar name. Example: java -jar -Dnogui=true JMusicBot.jar");
-            } else if ("-nocheckupdates".equalsIgnoreCase(arg)) {
-                CHECK_UPDATE = false;
-                log.info("Disabled update check");
-            } else if ("-auditcommands".equalsIgnoreCase(arg)) {
-                COMMAND_AUDIT_ENABLED = true;
-                log.info("Enabled command audit logging.");
-            }
+        parseStartupArgs(args, prompt, log);
 
-        // get and check latest version
         String version = OtherUtil.checkVersion(prompt);
-
-        if (!System.getProperty("java.vm.name").contains("64"))
-            prompt.alert(Prompt.Level.WARNING, "Java Version", "You are using an unsupported Java version. Please use the 64-bit version of Java.");
-
-        try {
-            Process checkPython3 = Runtime.getRuntime().exec("python3 --version");
-            int python3ExitCode = checkPython3.waitFor();
-
-            if (python3ExitCode != 0) {
-                log.info("Python3 is not installed. Checking for python.");
-                Process checkPython = Runtime.getRuntime().exec("python --version");
-                BufferedReader reader = new BufferedReader(new InputStreamReader(checkPython.getInputStream()));
-                String pythonVersion = reader.readLine();
-                int pythonExitCode = checkPython.waitFor();
-
-                if (pythonExitCode == 0 && pythonVersion != null && pythonVersion.startsWith("Python 3")) {
-                    log.info(pythonVersion);
-                } else {
-                    prompt.alert(Prompt.Level.WARNING, "Python", "Python (version 3.x) is not installed. Please install Python 3.");
-                }
-            } else {
-                log.info("Python (version 3.x) is installed");
-            }
-        } catch (Exception e) {
-            prompt.alert(Prompt.Level.WARNING, "Python", "An error occurred while checking the Python version. Please ensure Python 3 is installed.");
+        if (version != null && !version.isEmpty()) {
+            log.debug("Version check result: {}", version);
         }
 
+        if (!System.getProperty("java.vm.name").contains("64")) {
+            prompt.alert(Prompt.Level.WARNING, "Java Version", "You are using an unsupported Java version. Please use the 64-bit version of Java.");
+        }
 
+        checkPythonAvailability(prompt, log);
 
-        // load config
         BotConfig config = new BotConfig(prompt);
         config.load();
-
-        if (!config.isValid())
+        if (!config.isValid()) {
             return;
-
-        // Initialize GUI early if not in nogui mode to capture all logs
-        GUI gui = null;
-        if (!prompt.isNoGUI()) {
-            try {
-                gui = new GUI();
-                // Don't call gui.init() yet - just create it to redirect System.out
-                log.info("GUI console initialized - all logs will appear in the GUI");
-            } catch (Exception e) {
-                log.error("Could not create the GUI. The following factors may be causing this:\n"
-                        + "Running on a server\n"
-                        + "Running in an environment without a display\n"
-                        + "To hide this error, use the -Dnogui=true flag to run in GUI-less mode.");
-            }
         }
 
-        // --- YouTube OAuth2: Log Listener for Refresh Token ---
-        // Redirect System.out to capture refresh token log and update config.txt automatically.
-        // Use DelegatingPrintStream so we can update the destination when GUI is initialized
-        originalOut = new DelegatingPrintStream(System.out);
-        System.setOut(new PrintStream(new OutputStream() {
-            private final StringBuilder buffer = new StringBuilder();
-            @Override
-            public void write(int b) throws IOException {
-                // Only treat '\n' as a line ending (not '\r')
-                if (b == '\n') {
-                    String line = buffer.toString();
-                    originalOut.println(line); // Always print the original line as a true line
-                    if (line.contains("OAUTH INTEGRATION: Token retrieved successfully. Store your refresh token as this can be reused.")) {
-                        int start = line.indexOf('(');
-                        int end = line.indexOf(')', start);
-                        if (start != -1 && end != -1 && end > start + 1) {
-                            String token = line.substring(start + 1, end);
-                            if (token.startsWith("1//")) {
-                                config.setYouTubeRefreshToken(token);
-                                LocalTime now = LocalTime.now();
-                                String timestamp = String.format("[%02d:%02d:%02d]", now.getHour(), now.getMinute(), now.getSecond());
-                                originalOut.println(timestamp + " [INFO] [YoutubeOauth2Handler] Refresh token saved to config.txt");
-                            }
-                        }
-                    }
-                    buffer.setLength(0);
-                } else if (b != '\r') {
-                    buffer.append((char) b);
-                }
-            }
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                for (int i = off; i < off + len; i++) {
-                    write(b[i]);
-                }
-            }
-        }, true));
+        GUI gui = initializeGui(prompt, log);
+        installOAuthRefreshTokenCapture(config);
 
         if (config.getAuditCommands()) {
             COMMAND_AUDIT_ENABLED = true;
@@ -238,6 +149,7 @@ public class JMusicBot {
         // set up the listener
         EventWaiter waiter = new EventWaiter();
         SettingsManager settings = new SettingsManager();
+
         Bot bot = new Bot(waiter, config, settings);
         Bot.INSTANCE = bot;
         
@@ -343,7 +255,7 @@ public class JMusicBot {
             cb.setStatus(config.getStatus());
         if (config.getGame() == null)
             cb.setActivity(Activity.playing("Check help with " + config.getPrefix() + config.getHelp()));
-        else if (config.getGame().getName().toLowerCase().matches("(none|なし)")) {
+        else if (config.getGame().getName().toLowerCase().matches("(none)")) {
             cb.setActivity(null);
             nogame = true;
         } else
@@ -438,5 +350,105 @@ public class JMusicBot {
                 com.jagrosh.jmusicbot.webpanel.WebPanelApplication.stop();
             }
         }));
+    }
+
+    private static void printBanner() {
+        try {
+            System.out.println(FigletFont.convertOneLine("JMusicBot v" + OtherUtil.getCurrentVersion()) + "\n" + "by THOMZY");
+        } catch (IOException e) {
+            System.out.println("JMusicBot v" + OtherUtil.getCurrentVersion() + "\nby THOMZY");
+        }
+    }
+
+    private static void parseStartupArgs(String[] args, Prompt prompt, Logger log) {
+        for (String arg : args) {
+            if ("-nogui".equalsIgnoreCase(arg)) {
+                prompt.alert(Prompt.Level.WARNING, "GUI", "-nogui flag is deprecated. "
+                        + "Please use the -Dnogui=true flag before the jar name. Example: java -jar -Dnogui=true JMusicBot.jar");
+            } else if ("-nocheckupdates".equalsIgnoreCase(arg)) {
+                CHECK_UPDATE = false;
+                log.info("Disabled update check");
+            } else if ("-auditcommands".equalsIgnoreCase(arg)) {
+                COMMAND_AUDIT_ENABLED = true;
+                log.info("Enabled command audit logging.");
+            }
+        }
+    }
+
+    private static void checkPythonAvailability(Prompt prompt, Logger log) {
+        try {
+            Process checkPython3 = Runtime.getRuntime().exec("python3 --version");
+            int python3ExitCode = checkPython3.waitFor();
+            if (python3ExitCode == 0) {
+                log.info("Python (version 3.x) is installed");
+                return;
+            }
+
+            log.info("Python3 is not installed. Checking for python.");
+            Process checkPython = Runtime.getRuntime().exec("python --version");
+            BufferedReader reader = new BufferedReader(new InputStreamReader(checkPython.getInputStream()));
+            String pythonVersion = reader.readLine();
+            int pythonExitCode = checkPython.waitFor();
+            if (pythonExitCode == 0 && pythonVersion != null && pythonVersion.startsWith("Python 3")) {
+                log.info(pythonVersion);
+                return;
+            }
+
+            prompt.alert(Prompt.Level.WARNING, "Python", "Python (version 3.x) is not installed. Please install Python 3.");
+        } catch (Exception e) {
+            prompt.alert(Prompt.Level.WARNING, "Python", "An error occurred while checking the Python version. Please ensure Python 3 is installed.");
+        }
+    }
+
+    private static GUI initializeGui(Prompt prompt, Logger log) {
+        GUI gui = null;
+        if (!prompt.isNoGUI()) {
+            try {
+                gui = new GUI();
+                log.info("GUI console initialized - all logs will appear in the GUI");
+            } catch (Exception e) {
+                log.error("Could not create the GUI. The following factors may be causing this:\n"
+                        + "Running on a server\n"
+                        + "Running in an environment without a display\n"
+                        + "To hide this error, use the -Dnogui=true flag to run in GUI-less mode.");
+            }
+        }
+        return gui;
+    }
+
+    private static void installOAuthRefreshTokenCapture(BotConfig config) {
+        originalOut = new DelegatingPrintStream(System.out);
+        System.setOut(new PrintStream(new OutputStream() {
+            private final StringBuilder buffer = new StringBuilder();
+            @Override
+            public void write(int b) throws IOException {
+                if (b == '\n') {
+                    String line = buffer.toString();
+                    originalOut.println(line);
+                    if (line.contains("OAUTH INTEGRATION: Token retrieved successfully. Store your refresh token as this can be reused.")) {
+                        int start = line.indexOf('(');
+                        int end = line.indexOf(')', start);
+                        if (start != -1 && end != -1 && end > start + 1) {
+                            String token = line.substring(start + 1, end);
+                            if (token.startsWith("1//")) {
+                                config.setYouTubeRefreshToken(token);
+                                LocalTime now = LocalTime.now();
+                                String timestamp = String.format("[%02d:%02d:%02d]", now.getHour(), now.getMinute(), now.getSecond());
+                                originalOut.println(timestamp + " [INFO] [YoutubeOauth2Handler] Refresh token saved to config.txt");
+                            }
+                        }
+                    }
+                    buffer.setLength(0);
+                } else if (b != '\r') {
+                    buffer.append((char) b);
+                }
+            }
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                for (int i = off; i < off + len; i++) {
+                    write(b[i]);
+                }
+            }
+        }, true));
     }
 }

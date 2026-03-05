@@ -167,138 +167,10 @@ public abstract class Command extends Interaction
      */
     public final void run(CommandEvent event)
     {
-        // child check
-        if(!event.getArgs().isEmpty())
-        {
-            String[] parts = Arrays.copyOf(event.getArgs().split("\\s+",2), 2);
-            if(helpBiConsumer!=null && parts[0].equalsIgnoreCase(event.getClient().getHelpWord()))
-            {
-                helpBiConsumer.accept(event, this);
-                return;
-            }
-            for(Command cmd: getChildren())
-            {
-                if(cmd.isCommandFor(parts[0]))
-                {
-                    event.setArgs(parts[1]==null ? "" : parts[1]);
-                    cmd.run(event);
-                    return;
-                }
-            }
-        }
-
-        // owner check
-        if(ownerCommand && !(event.isOwner()))
-        {
-            terminate(event,null);
-            return;
-        }
-
-        // category check
-        if(category!=null && !category.test(event))
-        {
-            terminate(event, category.getFailureResponse());
-            return;
-        }
-
-        // is allowed check
-        if(event.isFromType(ChannelType.TEXT) && !isAllowed(event.getTextChannel()))
-        {
-            terminate(event, "That command cannot be used in this channel!");
-            return;
-        }
-
-        // required role check
-        if(requiredRole!=null)
-            if(!event.isFromType(ChannelType.TEXT) || event.getMember().getRoles().stream().noneMatch(r -> r.getName().equalsIgnoreCase(requiredRole)))
-            {
-                terminate(event, event.getClient().getError()+" You must have a role called `"+requiredRole+"` to use that!");
-                return;
-            }
-
-        // availability check
-        if(!event.isFromType(ChannelType.PRIVATE))
-        {
-            //user perms
-            for(Permission p: userPermissions)
-            {
-                if(p.isChannel())
-                {
-                    if(!event.getMember().hasPermission(event.getGuildChannel(), p))
-                    {
-                        terminate(event, String.format(userMissingPermMessage, event.getClient().getError(), p.getName(), "channel"));
-                        return;
-                    }
-                }
-                else
-                {
-                    if(!event.getMember().hasPermission(p))
-                    {
-                        terminate(event, String.format(userMissingPermMessage, event.getClient().getError(), p.getName(), "server"));
-                        return;
-                    }
-                }
-            }
-
-            // bot perms
-            for (Permission p : botPermissions) {
-                // Skip permissions that do not prevent the bot from functioning
-                if (p == Permission.VIEW_CHANNEL || p == Permission.MESSAGE_EMBED_LINKS) {
-                    continue;
-                }
-
-                // Get the guild and self member
-                Member selfMember = event.getGuild() != null ? event.getGuild().getSelfMember() : null;
-
-                if (p.isChannel()) {
-                    // Handle channel-specific permissions
-                    GuildVoiceState voiceState = event.getMember().getVoiceState();
-                    AudioChannelUnion channel = voiceState != null ? voiceState.getChannel() : null;
-
-                    if (channel == null || !channel.getType().isAudio()) {
-                        terminate(event, event.getClient().getError() + " You must be in a voice channel to use that!");
-                        return;
-                    }
-
-                    // Check bot's permissions in the voice channel
-                    if (!selfMember.hasPermission(channel, p)) {
-                        terminate(event, String.format(botMissingPermMessage, event.getClient().getError(), p.getName(), "voice channel"));
-                        return;
-                    }
-                } else {
-                    // Check guild-wide permissions
-                    if (!selfMember.hasPermission(p)) {
-                        terminate(event, String.format(botMissingPermMessage, event.getClient().getError(), p.getName(), "server"));
-                        return;
-                    }
-                }
-            }
-
-            // nsfw check
-            if (nsfwOnly && event.isFromType(ChannelType.TEXT) && !event.getTextChannel().isNSFW())
-            {
-                terminate(event, "This command may only be used in NSFW text channels!");
-                return;
-            }
-        }
-        else if(guildOnly)
-        {
-            terminate(event, event.getClient().getError()+" This command cannot be used in direct messages");
-            return;
-        }
-
-        // cooldown check, ignoring owner
-        if(cooldown>0 && !(event.isOwner()))
-        {
-            String key = getCooldownKey(event);
-            int remaining = event.getClient().getRemainingCooldown(key);
-            if(remaining>0)
-            {
-                terminate(event, getCooldownError(event, remaining));
-                return;
-            }
-            else event.getClient().applyCooldown(key, cooldown);
-        }
+        if (handleChildCommand(event)) return;
+        if (!passesBaseChecks(event)) return;
+        if (!passesAvailabilityChecks(event)) return;
+        if (!passesCooldownCheck(event)) return;
 
         // run
         try {
@@ -315,6 +187,121 @@ public abstract class Command extends Interaction
 
         if(event.getClient().getListener() != null)
             event.getClient().getListener().onCompletedCommand(event, this);
+    }
+
+    private boolean handleChildCommand(CommandEvent event) {
+        if(event.getArgs().isEmpty()) {
+            return false;
+        }
+        String[] parts = Arrays.copyOf(event.getArgs().split("\\s+",2), 2);
+        if(helpBiConsumer!=null && parts[0].equalsIgnoreCase(event.getClient().getHelpWord())) {
+            helpBiConsumer.accept(event, this);
+            return true;
+        }
+        for(Command cmd: getChildren()) {
+            if(cmd.isCommandFor(parts[0])) {
+                event.setArgs(parts[1]==null ? "" : parts[1]);
+                cmd.run(event);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean passesBaseChecks(CommandEvent event) {
+        if(ownerCommand && !(event.isOwner())) {
+            terminate(event,null);
+            return false;
+        }
+        if(category!=null && !category.test(event)) {
+            terminate(event, category.getFailureResponse());
+            return false;
+        }
+        if(event.isFromType(ChannelType.TEXT) && !isAllowed(event.getTextChannel())) {
+            terminate(event, "That command cannot be used in this channel!");
+            return false;
+        }
+        if(requiredRole!=null && (!event.isFromType(ChannelType.TEXT) || event.getMember().getRoles().stream().noneMatch(r -> r.getName().equalsIgnoreCase(requiredRole)))) {
+            terminate(event, event.getClient().getError()+" You must have a role called `"+requiredRole+"` to use that!");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean passesAvailabilityChecks(CommandEvent event) {
+        if(event.isFromType(ChannelType.PRIVATE)) {
+            if(guildOnly) {
+                terminate(event, event.getClient().getError()+" This command cannot be used in direct messages");
+                return false;
+            }
+            return true;
+        }
+
+        if (!passesUserPermissionChecks(event) || !passesBotPermissionChecks(event)) {
+            return false;
+        }
+
+        if (nsfwOnly && event.isFromType(ChannelType.TEXT) && !event.getTextChannel().isNSFW()) {
+            terminate(event, "This command may only be used in NSFW text channels!");
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean passesUserPermissionChecks(CommandEvent event) {
+        for(Permission p: userPermissions) {
+            if(p.isChannel()) {
+                if(!event.getMember().hasPermission(event.getGuildChannel(), p)) {
+                    terminate(event, String.format(userMissingPermMessage, event.getClient().getError(), p.getName(), "channel"));
+                    return false;
+                }
+            } else if(!event.getMember().hasPermission(p)) {
+                terminate(event, String.format(userMissingPermMessage, event.getClient().getError(), p.getName(), "server"));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean passesBotPermissionChecks(CommandEvent event) {
+        for (Permission p : botPermissions) {
+            if (p == Permission.VIEW_CHANNEL || p == Permission.MESSAGE_EMBED_LINKS) {
+                continue;
+            }
+
+            Member selfMember = event.getGuild() != null ? event.getGuild().getSelfMember() : null;
+            if (p.isChannel()) {
+                GuildVoiceState voiceState = event.getMember().getVoiceState();
+                AudioChannelUnion channel = voiceState != null ? voiceState.getChannel() : null;
+                if (channel == null || !channel.getType().isAudio()) {
+                    terminate(event, event.getClient().getError() + " You must be in a voice channel to use that!");
+                    return false;
+                }
+                if (!selfMember.hasPermission(channel, p)) {
+                    terminate(event, String.format(botMissingPermMessage, event.getClient().getError(), p.getName(), "voice channel"));
+                    return false;
+                }
+            } else if (!selfMember.hasPermission(p)) {
+                terminate(event, String.format(botMissingPermMessage, event.getClient().getError(), p.getName(), "server"));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean passesCooldownCheck(CommandEvent event) {
+        if(!(cooldown>0 && !(event.isOwner()))) {
+            return true;
+        }
+        String key = getCooldownKey(event);
+        int remaining = event.getClient().getRemainingCooldown(key);
+        if(remaining>0) {
+            terminate(event, getCooldownError(event, remaining));
+            return false;
+        }
+        event.getClient().applyCooldown(key, cooldown);
+        return true;
     }
 
     /**
