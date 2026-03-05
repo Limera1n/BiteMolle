@@ -10,7 +10,7 @@ RUN mkdir -p /opt/jmusicbot
 WORKDIR /opt/jmusicbot
 
 RUN \
-    echo "JMusicBot-JP Docker Container Builder v1.1\nMaintained by CyberRex (CyberRex0)" && \
+    printf "JMusicBot-JP Docker Container Builder v1.1\nMaintained by CyberRex (CyberRex0)\n" && \
     echo "Preconfiguring apt..." && apt-get update > /dev/null && \
     echo "Installing packages..." && apt-get install -y ffmpeg curl jq > /dev/null && \
     rm -rf /var/lib/apt/lists/* && \
