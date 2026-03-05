@@ -9,6 +9,10 @@ final class PlaylistLoaderSupport {
     private PlaylistLoaderSupport() {
     }
 
+    interface PlaylistFactory<P> {
+        P create(String name, List<String> items, boolean shuffle);
+    }
+
     static <T> void shuffle(List<T> list) {
         IntStream.range(0, list.size()).forEach(first -> {
             int second = (int) (Math.random() * list.size());
@@ -25,6 +29,15 @@ final class PlaylistLoaderSupport {
         if (shuffle)
             shuffle(items);
         return new LoadedPlaylist(items, shuffle);
+    }
+
+    static <P> P loadPlaylist(String name, Path playlistPath, PlaylistFactory<P> factory) {
+        try {
+            LoadedPlaylist source = readPlaylist(playlistPath);
+            return factory.create(name, source.getItems(), source.isShuffle());
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     static final class LoadedPlaylist {

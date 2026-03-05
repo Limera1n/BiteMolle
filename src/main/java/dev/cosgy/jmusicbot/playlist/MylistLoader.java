@@ -2,7 +2,6 @@ package dev.cosgy.jmusicbot.playlist;
 
 import com.jagrosh.jmusicbot.BotConfig;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
-import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 
 import java.io.File;
@@ -11,7 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -105,61 +103,26 @@ public class MylistLoader {
     }
 
     private Playlist loadPlaylistFromPath(String name, java.nio.file.Path playlistPath) {
-        try {
-            PlaylistLoaderSupport.LoadedPlaylist source = PlaylistLoaderSupport.readPlaylist(playlistPath);
-            return new Playlist(name, source.getItems(), source.isShuffle());
-        } catch (IOException e) {
-            return null;
-        }
+        return PlaylistLoaderSupport.loadPlaylist(name, playlistPath, Playlist::new);
     }
 
-    public static class PlaylistLoadError {
-        private final int number;
-        private final String item;
-        private final String reason;
-
+    public static class PlaylistLoadError extends BasePlaylistLoadError {
         private PlaylistLoadError(int number, String item, String reason) {
-            this.number = number;
-            this.item = item;
-            this.reason = reason;
-        }
-
-        public int getIndex() {
-            return number;
-        }
-
-        public String getItem() {
-            return item;
-        }
-
-        public String getReason() {
-            return reason;
+            super(number, item, reason);
         }
     }
 
-    public class Playlist {
-        private final String name;
-        private final List<String> items;
-        private final boolean shuffle;
-        private final List<AudioTrack> tracks = new LinkedList<>();
-        private final List<PlaylistLoadError> errors = new LinkedList<>();
-        private boolean loaded = false;
+    public class Playlist extends BasePlaylist<PlaylistLoadError> {
 
         private Playlist(String name, List<String> items, boolean shuffle) {
-            this.name = name;
-            this.items = items;
-            this.shuffle = shuffle;
+            super(name, items, shuffle);
         }
 
-        public void loadTracks(AudioPlayerManager manager, Consumer<AudioTrack> consumer, Runnable callback) {
-            if (loaded)
-                return;
-            loaded = true;
-            PlaylistAsyncLoader.loadTracks(manager, name, items, shuffle, config, tracks, errors, consumer, callback,
-                    this::shuffleTracks, createErrorFactory());
+        public void loadTracks(com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager manager, java.util.function.Consumer<AudioTrack> consumer, Runnable callback) {
+            super.loadTracks(manager, config, consumer, callback);
         }
 
-        private PlaylistAsyncLoader.ErrorFactory<PlaylistLoadError> createErrorFactory() {
+        protected PlaylistAsyncLoader.ErrorFactory<PlaylistLoadError> createErrorFactory() {
             return new PlaylistAsyncLoader.ErrorFactory<>() {
                 @Override
                 public PlaylistLoadError tooLong(int index, String item) {
@@ -176,26 +139,6 @@ public class MylistLoader {
                     return new PlaylistLoadError(index, item, "Failed to load the track: " + exception.getLocalizedMessage());
                 }
             };
-        }
-
-        public void shuffleTracks() {
-            PlaylistLoaderSupport.shuffle(tracks);
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public List<String> getItems() {
-            return items;
-        }
-
-        public List<AudioTrack> getTracks() {
-            return tracks;
-        }
-
-        public List<PlaylistLoadError> getErrors() {
-            return errors;
         }
     }
 }
