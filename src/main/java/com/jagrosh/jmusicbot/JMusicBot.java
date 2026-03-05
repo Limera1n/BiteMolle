@@ -181,85 +181,11 @@ public class JMusicBot {
             cb.setServerInvite("https://discord.gg/MjNfC6TK2y");
         }
 
-        // Implementing the slash command
-        List<SlashCommand> slashCommandList = new ArrayList<>() {{
-            add(new HelpCmd(bot));
-            add(aboutCommand);
-            if (config.isUseInviteCommand()) {
-                add(new InviteCommand());
-            }
-            add(new PingCommand());
-            add(new SettingsCmd(bot));
-            //if (config.getCosgyDevHost()) add(new InfoCommand(bot));
-            // General
-            add(new ServerInfo(bot));
-            //add(new UserInfo());
-            add(new CashCmd(bot));
-            add(new StatsCommand(bot));
-            // Music
-            add(new LyricsCmd(bot));
-            add(new NowplayingCmd(bot));
-            add(new PlayCmd(bot));
-            add(new SpotifyCmd(bot));
-            add(new PlaylistsCmd(bot));
-            add(new MylistCmd(bot));
-            add(new QueueCmd(bot));
-            add(new RemoveCmd(bot));
-            add(new SearchCmd(bot));
-            add(new SCSearchCmd(bot));
-            add(new SeekCmd(bot));
-            add(new NicoSearchCmd(bot));
-            add(new ShuffleCmd(bot));
-            add(new SkipCmd(bot));
-            add(new VolumeCmd(bot));
-            add(new RadioCmd(bot));
-            // DJ
-            add(new ForceRemoveCmd(bot));
-            add(new ForceskipCmd(bot));
-            add(new NextCmd(bot));
-            add(new MoveTrackCmd(bot));
-            add(new PauseCmd(bot));
-            add(new PlaynextCmd(bot));
-            add(new RepeatCmd(bot));
-            add(new SkipToCmd(bot));
-            add(new ForceToEnd(bot));
-            add(new StopCmd(bot));
-            add(new HistoryCmd(bot));
-            // Admin
-            add(new PrefixCmd(bot));
-            add(new SetdjCmd(bot));
-            add(new SkipratioCmd(bot));
-            add(new SettcCmd(bot));
-            add(new SetvcCmd(bot));
-            add(new SetvcStatusCmd(bot));
-            add(new SettopicStatusCmd(bot));
-            add(new AutoplaylistCmd(bot));
-            add(new ServerListCmd(bot));
-            // Owner
-            add(new DebugCmd(bot));
-            add(new SetavatarCmd(bot));
-            add(new SetgameCmd(bot));
-            add(new SetnameCmd(bot));
-            add(new SetstatusCmd(bot));
-            add(new PublistCmd(bot));
-            add(new ShutdownCmd(bot));
-            add(new LeaveCmd(bot));
-        }};
-
-        cb.addCommands(slashCommandList.toArray(new Command[0]));
+        registerSlashCommands(cb, bot, config, aboutCommand);
 
         if (config.useEval())
             cb.addCommand(new EvalCmd(bot));
-        boolean nogame = false;
-        if (config.getStatus() != OnlineStatus.UNKNOWN)
-            cb.setStatus(config.getStatus());
-        if (config.getGame() == null)
-            cb.setActivity(Activity.playing("Check help with " + config.getPrefix() + config.getHelp()));
-        else if (config.getGame().getName().toLowerCase().matches("(none)")) {
-            cb.setActivity(null);
-            nogame = true;
-        } else
-            cb.setActivity(config.getGame());
+        boolean nogame = configureCommandClientPresence(cb, config);
         // Initialize the GUI window if it was created earlier
         if (finalGui != null) {
             try {
@@ -276,44 +202,9 @@ public class JMusicBot {
         // attempt to log in and start
         final JDA[] jdaRef = new JDA[1];
         try {
-            JDABuilder jdaBuilder = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
-                    .enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
-                    .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOJI, CacheFlag.ONLINE_STATUS, CacheFlag.STICKER, CacheFlag.SCHEDULED_EVENTS)
-                    .setActivity(nogame ? null : Activity.playing("Loading..."))
-                    .setStatus(config.getStatus() == OnlineStatus.INVISIBLE || config.getStatus() == OnlineStatus.OFFLINE
-                    ? OnlineStatus.INVISIBLE : OnlineStatus.DO_NOT_DISTURB);
-
-            AudioModuleConfig daveConfig = createDaveAudioModuleConfig(log, prompt);
-            if (daveConfig != null) {
-            jdaBuilder.setAudioModuleConfig(daveConfig);
-            }
-
-            JDA jda = jdaBuilder
-                .addEventListeners(cb.build(), waiter, new Listener(bot))
-                .setBulkDeleteSplittingEnabled(true)
-                .build();
+            JDA jda = startJda(config, cb, waiter, bot, prompt, log, nogame);
             jdaRef[0] = jda;
             bot.setJDA(jda);
-
-            String unsupportedReason = OtherUtil.getUnsupportedBotReason(jda);
-            if (unsupportedReason != null)
-            {
-                prompt.alert(Prompt.Level.ERROR, "JMusicBot", "JMusicBot cannot be run with this Discord bot user: " + unsupportedReason);
-                try{ Thread.sleep(5000);}catch(InterruptedException ignored){} // this is awful but until we have a better way...
-                jda.shutdown();
-                System.exit(1);
-            }
-
-            // other check that will just be a warning now but may be required in the future
-            // check if the user has changed the prefix and provide info about the
-            // message content intent
-            /*if(!"@mention".equals(config.getPrefix()))
-            {
-                prompt.alert(Prompt.Level.INFO, "JMusicBot", "A custom prefix is currently set. "
-                        + "If the custom prefix does not work, make sure that 'MESSAGE CONTENT INTENT' is enabled. "
-                        + "https://discord.com/developers/applications/" + jda.getSelfUser().getId() + "/bot");
-            }*/
-
         }
         catch (InvalidTokenException ex) {
             //ex.getCause().getMessage();
@@ -350,6 +241,119 @@ public class JMusicBot {
                 com.jagrosh.jmusicbot.webpanel.WebPanelApplication.stop();
             }
         }));
+    }
+
+    private static void registerSlashCommands(CommandClientBuilder cb, Bot bot, BotConfig config, AboutCommand aboutCommand) {
+        List<SlashCommand> slashCommandList = new ArrayList<>();
+        slashCommandList.add(new HelpCmd(bot));
+        slashCommandList.add(aboutCommand);
+        if (config.isUseInviteCommand()) {
+            slashCommandList.add(new InviteCommand());
+        }
+        slashCommandList.add(new PingCommand());
+        slashCommandList.add(new SettingsCmd(bot));
+
+        slashCommandList.add(new ServerInfo(bot));
+        slashCommandList.add(new CashCmd(bot));
+        slashCommandList.add(new StatsCommand(bot));
+
+        slashCommandList.add(new LyricsCmd(bot));
+        slashCommandList.add(new NowplayingCmd(bot));
+        slashCommandList.add(new PlayCmd(bot));
+        slashCommandList.add(new SpotifyCmd(bot));
+        slashCommandList.add(new PlaylistsCmd(bot));
+        slashCommandList.add(new MylistCmd(bot));
+        slashCommandList.add(new QueueCmd(bot));
+        slashCommandList.add(new RemoveCmd(bot));
+        slashCommandList.add(new SearchCmd(bot));
+        slashCommandList.add(new SCSearchCmd(bot));
+        slashCommandList.add(new SeekCmd(bot));
+        slashCommandList.add(new NicoSearchCmd(bot));
+        slashCommandList.add(new ShuffleCmd(bot));
+        slashCommandList.add(new SkipCmd(bot));
+        slashCommandList.add(new VolumeCmd(bot));
+        slashCommandList.add(new RadioCmd(bot));
+
+        slashCommandList.add(new ForceRemoveCmd(bot));
+        slashCommandList.add(new ForceskipCmd(bot));
+        slashCommandList.add(new NextCmd(bot));
+        slashCommandList.add(new MoveTrackCmd(bot));
+        slashCommandList.add(new PauseCmd(bot));
+        slashCommandList.add(new PlaynextCmd(bot));
+        slashCommandList.add(new RepeatCmd(bot));
+        slashCommandList.add(new SkipToCmd(bot));
+        slashCommandList.add(new ForceToEnd(bot));
+        slashCommandList.add(new StopCmd(bot));
+        slashCommandList.add(new HistoryCmd(bot));
+
+        slashCommandList.add(new PrefixCmd(bot));
+        slashCommandList.add(new SetdjCmd(bot));
+        slashCommandList.add(new SkipratioCmd(bot));
+        slashCommandList.add(new SettcCmd(bot));
+        slashCommandList.add(new SetvcCmd(bot));
+        slashCommandList.add(new SetvcStatusCmd(bot));
+        slashCommandList.add(new SettopicStatusCmd(bot));
+        slashCommandList.add(new AutoplaylistCmd(bot));
+        slashCommandList.add(new ServerListCmd(bot));
+
+        slashCommandList.add(new DebugCmd(bot));
+        slashCommandList.add(new SetavatarCmd(bot));
+        slashCommandList.add(new SetgameCmd(bot));
+        slashCommandList.add(new SetnameCmd(bot));
+        slashCommandList.add(new SetstatusCmd(bot));
+        slashCommandList.add(new PublistCmd(bot));
+        slashCommandList.add(new ShutdownCmd(bot));
+        slashCommandList.add(new LeaveCmd(bot));
+
+        cb.addCommands(slashCommandList.toArray(new Command[0]));
+    }
+
+    private static boolean configureCommandClientPresence(CommandClientBuilder cb, BotConfig config) {
+        boolean nogame = false;
+        if (config.getStatus() != OnlineStatus.UNKNOWN) {
+            cb.setStatus(config.getStatus());
+        }
+        if (config.getGame() == null) {
+            cb.setActivity(Activity.playing("Check help with " + config.getPrefix() + config.getHelp()));
+        } else if (config.getGame().getName().toLowerCase().matches("(none)")) {
+            cb.setActivity(null);
+            nogame = true;
+        } else {
+            cb.setActivity(config.getGame());
+        }
+        return nogame;
+    }
+
+    private static JDA startJda(BotConfig config, CommandClientBuilder cb, EventWaiter waiter, Bot bot,
+                                Prompt prompt, Logger log, boolean nogame) {
+        JDABuilder jdaBuilder = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
+                .enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
+                .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOJI, CacheFlag.ONLINE_STATUS,
+                        CacheFlag.STICKER, CacheFlag.SCHEDULED_EVENTS)
+                .setActivity(nogame ? null : Activity.playing("Loading..."))
+                .setStatus(config.getStatus() == OnlineStatus.INVISIBLE || config.getStatus() == OnlineStatus.OFFLINE
+                        ? OnlineStatus.INVISIBLE : OnlineStatus.DO_NOT_DISTURB);
+
+        AudioModuleConfig daveConfig = createDaveAudioModuleConfig(log, prompt);
+        if (daveConfig != null) {
+            jdaBuilder.setAudioModuleConfig(daveConfig);
+        }
+
+        JDA jda = jdaBuilder
+                .addEventListeners(cb.build(), waiter, new Listener(bot))
+                .setBulkDeleteSplittingEnabled(true)
+                .build();
+
+        String unsupportedReason = OtherUtil.getUnsupportedBotReason(jda);
+        if (unsupportedReason != null)
+        {
+            prompt.alert(Prompt.Level.ERROR, "JMusicBot", "JMusicBot cannot be run with this Discord bot user: " + unsupportedReason);
+            try{ Thread.sleep(5000);}catch(InterruptedException ignored){} // this is awful but until we have a better way...
+            jda.shutdown();
+            System.exit(1);
+        }
+
+        return jda;
     }
 
     private static void printBanner() {

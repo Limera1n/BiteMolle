@@ -627,49 +627,72 @@ const Player = (function() {
     }
 
     function updateSourceIcon(data) {
-        let sourceIconElement = document.getElementById('track-source-icon');
         if (data.sourceIconUrl) {
-            if (sourceIconElement && sourceIconElement.tagName !== 'IMG') {
-                const img = document.createElement('img');
-                img.id = 'track-source-icon';
-                img.className = 'custom-source-icon';
-                img.alt = data.source;
-                img.style.width = '16px';
-                img.style.height = '16px';
-                img.style.marginRight = '5px';
-                img.style.verticalAlign = 'text-bottom';
-                sourceIconElement.replaceWith(img);
-                sourceIconElement = img;
+            const imageIcon = ensureSourceIconElement('IMG', data.source);
+            if (!imageIcon) {
+                return;
             }
-            if (sourceIconElement) {
-                sourceIconElement.src = data.sourceIconUrl;
-                sourceIconElement.style.display = 'inline-block';
-            }
+            imageIcon.src = data.sourceIconUrl;
+            imageIcon.style.display = 'inline-block';
             return;
         }
 
-        if (sourceIconElement && sourceIconElement.tagName !== 'I') {
-            const i = document.createElement('i');
-            i.id = 'track-source-icon';
-            sourceIconElement.replaceWith(i);
-            sourceIconElement = i;
+        const fontIcon = ensureSourceIconElement('I');
+        if (!fontIcon) {
+            return;
         }
 
+        fontIcon.className = UI.getSourceIcon(data.sourceType);
+        const sourceClass = getSourceTypeIconClass(data);
+        if (sourceClass) {
+            fontIcon.classList.add(sourceClass);
+        }
+    }
+
+    function ensureSourceIconElement(tagName, sourceName) {
+        let sourceIconElement = document.getElementById('track-source-icon');
         if (!sourceIconElement) {
-            return;
+            return null;
         }
 
-        sourceIconElement.className = UI.getSourceIcon(data.sourceType);
+        if (sourceIconElement.tagName !== tagName) {
+            const replacement = document.createElement(tagName.toLowerCase());
+            replacement.id = 'track-source-icon';
+            if (tagName === 'IMG') {
+                replacement.className = 'custom-source-icon';
+                replacement.alt = sourceName || '';
+                replacement.style.width = '16px';
+                replacement.style.height = '16px';
+                replacement.style.marginRight = '5px';
+                replacement.style.verticalAlign = 'text-bottom';
+            }
+            sourceIconElement.replaceWith(replacement);
+            sourceIconElement = replacement;
+        }
+
+        return sourceIconElement;
+    }
+
+    function getSourceTypeIconClass(data) {
         const sourceTypeLower = (data.sourceType || '').toLowerCase();
-        if (sourceTypeLower === 'youtube') sourceIconElement.classList.add('source-icon-youtube');
-        else if (sourceTypeLower === 'spotify') sourceIconElement.classList.add('source-icon-spotify');
-        else if (sourceTypeLower === 'soundcloud') sourceIconElement.classList.add('source-icon-soundcloud');
-        else if (sourceTypeLower === 'tiktok') sourceIconElement.classList.add('source-icon-tiktok');
-        else if (sourceTypeLower === 'instagram') sourceIconElement.classList.add('source-icon-instagram');
-        else if (sourceTypeLower === 'twitter') sourceIconElement.classList.add('source-icon-twitter');
-        else if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && isGensokyoStream(data))) sourceIconElement.classList.add('source-icon-gensokyoradio');
-        else if (sourceTypeLower === 'radio') sourceIconElement.classList.add('source-icon-radio');
-        else if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') sourceIconElement.classList.add('source-icon-local');
+        const iconClassMap = {
+            youtube: 'source-icon-youtube',
+            spotify: 'source-icon-spotify',
+            soundcloud: 'source-icon-soundcloud',
+            tiktok: 'source-icon-tiktok',
+            instagram: 'source-icon-instagram',
+            twitter: 'source-icon-twitter',
+            radio: 'source-icon-radio'
+        };
+
+        if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && isGensokyoStream(data))) {
+            return 'source-icon-gensokyoradio';
+        }
+        if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') {
+            return 'source-icon-local';
+        }
+
+        return iconClassMap[sourceTypeLower] || '';
     }
 
     function updateRequesterInfo(data) {
@@ -712,31 +735,55 @@ const Player = (function() {
         const gensokyoInfoContainer = document.getElementById('gensokyo-info-container');
         const localfileInfoContainer = document.getElementById('localfile-info-container');
 
-        spotifyInfoContainer.style.display = 'none';
-        gensokyoInfoContainer.style.display = 'none';
-        localfileInfoContainer.style.display = 'none';
+        hideOptionalMetadataPanels(spotifyInfoContainer, gensokyoInfoContainer, localfileInfoContainer);
 
         if (data.sourceType === 'Spotify' && data.spotifyInfo) {
-            document.getElementById('track-album-text').textContent = data.spotifyInfo.albumName ? `Album: ${data.spotifyInfo.albumName}` : 'Album: Unknown';
-            document.getElementById('track-year-text').textContent = data.spotifyInfo.releaseYear ? `Released: ${data.spotifyInfo.releaseYear}` : 'Released: Unknown';
-            spotifyInfoContainer.style.display = 'flex';
+            populateSpotifyPanel(data.spotifyInfo, spotifyInfoContainer);
             return;
         }
 
         if ((data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data)) && data.spotifyInfo) {
-            gensokyoInfoContainer.style.display = 'flex';
-            document.getElementById('gensokyo-album-text').textContent = data.spotifyInfo.albumName ? `Album: ${data.spotifyInfo.albumName}` : 'Album: Unknown';
-            document.getElementById('gensokyo-circle-text').textContent = data.spotifyInfo.circleName ? `Circle: ${data.spotifyInfo.circleName}` : 'Circle: Unknown';
-            document.getElementById('gensokyo-year-text').textContent = data.spotifyInfo.releaseYear ? `Year: ${data.spotifyInfo.releaseYear}` : 'Year: Unknown';
+            populateGensokyoPanel(data.spotifyInfo, gensokyoInfoContainer);
             return;
         }
 
         if (data.sourceType === 'Local File') {
-            localfileInfoContainer.style.display = 'flex';
-            document.getElementById('localfile-album-text').textContent = data.localAlbum && data.localAlbum !== 'Unknown Album' ? `Album: ${data.localAlbum}` : 'Album: Unknown';
-            document.getElementById('localfile-genre-text').textContent = data.localGenre && data.localGenre !== 'Unknown Genre' ? `Genre: ${data.localGenre}` : 'Genre: Unknown';
-            document.getElementById('localfile-year-text').textContent = data.localYear && data.localYear !== '' ? `Year: ${data.localYear}` : 'Year: Unknown';
+            populateLocalFilePanel(data, localfileInfoContainer);
         }
+    }
+
+    function hideOptionalMetadataPanels(spotifyInfoContainer, gensokyoInfoContainer, localfileInfoContainer) {
+        spotifyInfoContainer.style.display = 'none';
+        gensokyoInfoContainer.style.display = 'none';
+        localfileInfoContainer.style.display = 'none';
+    }
+
+    function setMetadataText(id, value, label, unknownValue) {
+        document.getElementById(id).textContent = value ? `${label}: ${value}` : `${label}: ${unknownValue}`;
+    }
+
+    function populateSpotifyPanel(spotifyInfo, spotifyInfoContainer) {
+        setMetadataText('track-album-text', spotifyInfo.albumName, 'Album', 'Unknown');
+        setMetadataText('track-year-text', spotifyInfo.releaseYear, 'Released', 'Unknown');
+        spotifyInfoContainer.style.display = 'flex';
+    }
+
+    function populateGensokyoPanel(spotifyInfo, gensokyoInfoContainer) {
+        setMetadataText('gensokyo-album-text', spotifyInfo.albumName, 'Album', 'Unknown');
+        setMetadataText('gensokyo-circle-text', spotifyInfo.circleName, 'Circle', 'Unknown');
+        setMetadataText('gensokyo-year-text', spotifyInfo.releaseYear, 'Year', 'Unknown');
+        gensokyoInfoContainer.style.display = 'flex';
+    }
+
+    function populateLocalFilePanel(data, localfileInfoContainer) {
+        const album = data.localAlbum && data.localAlbum !== 'Unknown Album' ? data.localAlbum : '';
+        const genre = data.localGenre && data.localGenre !== 'Unknown Genre' ? data.localGenre : '';
+        const year = data.localYear && data.localYear !== '' ? data.localYear : '';
+
+        setMetadataText('localfile-album-text', album, 'Album', 'Unknown');
+        setMetadataText('localfile-genre-text', genre, 'Genre', 'Unknown');
+        setMetadataText('localfile-year-text', year, 'Year', 'Unknown');
+        localfileInfoContainer.style.display = 'flex';
     }
 
     function updateAlbumArtClass(data) {

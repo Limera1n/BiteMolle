@@ -297,67 +297,88 @@ public class HistoryController {
         }
 
         return records.stream()
-                .filter(record ->
-                        containsIgnoreCase(record.getTitle(), lowerQuery) ||
-                        containsIgnoreCase(record.getArtist(), lowerQuery) ||
-                        containsIgnoreCase(record.getUrl(), lowerQuery) ||
-                        containsIgnoreCase(String.valueOf(record.getDuration()), lowerQuery) ||
-                        containsIgnoreCase(record.getFormattedDuration(), lowerQuery) ||
-                        containsIgnoreCase(String.valueOf(record.getPlayedAt()), lowerQuery) ||
-                        containsIgnoreCase(record.getFormattedPlayedAt(), lowerQuery) ||
-                        containsIgnoreCase(record.getRequesterId(), lowerQuery) ||
-                        containsIgnoreCase(record.getRequesterName(), lowerQuery) ||
-                        containsIgnoreCase(record.getGuildId(), lowerQuery) ||
-                        containsIgnoreCase(record.getGuildName(), lowerQuery) ||
-
-                        (record.hasSpotifyData() && (
-                                containsIgnoreCase(record.getSpotifyTrackId(), lowerQuery) ||
-                                        containsIgnoreCase(record.getSpotifyAlbumName(), lowerQuery) ||
-                                        containsIgnoreCase(record.getSpotifyAlbumImageUrl(), lowerQuery) ||
-                                        containsIgnoreCase(record.getSpotifyArtistName(), lowerQuery) ||
-                                        containsIgnoreCase(record.getSpotifyReleaseYear(), lowerQuery)
-                        )) ||
-
-                        (record.hasRadioData() && (
-                                containsIgnoreCase(record.getRadioStationName(), lowerQuery) ||
-                                        containsIgnoreCase(record.getRadioLogoUrl(), lowerQuery) ||
-                                        containsIgnoreCase(record.getRadioSongImageUrl(), lowerQuery)
-                        )) ||
-
-                        containsIgnoreCase(record.getYoutubeVideoId(), lowerQuery) ||
-
-                        (record.hasLocalData() && (
-                                containsIgnoreCase(record.getLocalAlbum(), lowerQuery) ||
-                                        containsIgnoreCase(record.getLocalGenre(), lowerQuery) ||
-                                        containsIgnoreCase(record.getLocalYear(), lowerQuery) ||
-                                        containsIgnoreCase(record.getLocalArtworkHash(), lowerQuery)
-                        )) ||
-
-                        (record.hasGensokyoData() && (
-                                containsIgnoreCase(record.getGensokyoTitle(), lowerQuery) ||
-                                        containsIgnoreCase(record.getGensokyoArtist(), lowerQuery) ||
-                                        containsIgnoreCase(record.getGensokyoAlbum(), lowerQuery) ||
-                                        containsIgnoreCase(record.getGensokyoCircle(), lowerQuery) ||
-                                        containsIgnoreCase(record.getGensokyoYear(), lowerQuery) ||
-                                        containsIgnoreCase(record.getGensokyoAlbumArtUrl(), lowerQuery)
-                        )) ||
-
-                        (record.hasStreamData() && (
-                                containsIgnoreCase(record.getStreamName(), lowerQuery) ||
-                                        containsIgnoreCase(record.getStreamGenre(), lowerQuery) ||
-                                        containsIgnoreCase(record.getStreamLogo(), lowerQuery) ||
-                                        containsIgnoreCase(String.valueOf(record.isLiveStream()), lowerQuery)
-                        )) ||
-
-                        (record.hasSoundCloudData() && containsIgnoreCase(record.getSoundCloudArtworkUrl(), lowerQuery)) ||
-
-                        (record.hasYtDlpData() && (
-                                containsIgnoreCase(record.getYtDlpSourceType(), lowerQuery) ||
-                                        containsIgnoreCase(record.getYtDlpThumbnailUrl(), lowerQuery)
-                        ))
-                )
+            .filter(record -> matchesAnyField(record, lowerQuery))
                 .collect(Collectors.toList());
     }
+
+        private boolean matchesAnyField(MusicHistory.PlayRecord record, String query) {
+        return matchesCoreFields(record, query)
+            || matchesSpotifyFields(record, query)
+            || matchesRadioFields(record, query)
+            || containsIgnoreCase(record.getYoutubeVideoId(), query)
+            || matchesLocalFields(record, query)
+            || matchesGensokyoFields(record, query)
+            || matchesStreamFields(record, query)
+            || (record.hasSoundCloudData() && containsIgnoreCase(record.getSoundCloudArtworkUrl(), query))
+            || matchesYtDlpFields(record, query);
+        }
+
+        private boolean matchesCoreFields(MusicHistory.PlayRecord record, String query) {
+        return matchesAny(query,
+            record.getTitle(),
+            record.getArtist(),
+            record.getUrl(),
+            String.valueOf(record.getDuration()),
+            record.getFormattedDuration(),
+            String.valueOf(record.getPlayedAt()),
+            record.getFormattedPlayedAt(),
+            record.getRequesterId(),
+            record.getRequesterName(),
+            record.getGuildId(),
+            record.getGuildName());
+        }
+
+        private boolean matchesSpotifyFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasSpotifyData() && matchesAny(query,
+            record.getSpotifyTrackId(),
+            record.getSpotifyAlbumName(),
+            record.getSpotifyAlbumImageUrl(),
+            record.getSpotifyArtistName(),
+            record.getSpotifyReleaseYear());
+        }
+
+        private boolean matchesRadioFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasRadioData() && matchesAny(query,
+            record.getRadioStationName(),
+            record.getRadioLogoUrl(),
+            record.getRadioSongImageUrl());
+        }
+
+        private boolean matchesLocalFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasLocalData() && matchesAny(query,
+            record.getLocalAlbum(),
+            record.getLocalGenre(),
+            record.getLocalYear(),
+            record.getLocalArtworkHash());
+        }
+
+        private boolean matchesGensokyoFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasGensokyoData() && matchesAny(query,
+            record.getGensokyoTitle(),
+            record.getGensokyoArtist(),
+            record.getGensokyoAlbum(),
+            record.getGensokyoCircle(),
+            record.getGensokyoYear(),
+            record.getGensokyoAlbumArtUrl());
+        }
+
+        private boolean matchesStreamFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasStreamData() && matchesAny(query,
+            record.getStreamName(),
+            record.getStreamGenre(),
+            record.getStreamLogo(),
+            String.valueOf(record.isLiveStream()));
+        }
+
+        private boolean matchesYtDlpFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasYtDlpData() && matchesAny(query,
+            record.getYtDlpSourceType(),
+            record.getYtDlpThumbnailUrl());
+        }
+
+        private boolean matchesAny(String query, String... values) {
+        return java.util.Arrays.stream(values).anyMatch(value -> containsIgnoreCase(value, query));
+        }
 
     /**
      * Get the music history
