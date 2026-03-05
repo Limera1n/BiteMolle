@@ -74,124 +74,161 @@ public abstract class SlashCommand extends Command
     
     public final void run(SlashCommandEvent event)
     {
-        // Attach the client reference
         this.client = event.getClient();
+        if (failsOwnerOnlyCheck(event)
+                || failsAllowedChannelCheck(event)
+                || failsRequiredRoleCheck(event)
+                || failsContextAndPermissionChecks(event)
+                || failsCooldownCheck(event)) {
+            return;
+        }
 
-        // Check owner-only restriction
+        executeAndNotify(event);
+    }
+
+    private boolean failsOwnerOnlyCheck(SlashCommandEvent event)
+    {
         if(ownerCommand && !(isOwner(event, client)))
         {
             terminate(event, "Only an owner may run this command. Sorry.", client);
-            return;
+            return true;
         }
+        return false;
+    }
 
-        // Check whether this channel allows the command
-        try {
+    private boolean failsAllowedChannelCheck(SlashCommandEvent event)
+    {
+        try
+        {
             if(!isAllowed(event.getTextChannel()))
             {
                 terminate(event, "That command cannot be used in this channel!", client);
-                return;
+                return true;
             }
-        } catch (Exception e) {
-            // Ignore channel checks outside text channels
+        }
+        catch (Exception ignored)
+        {
+            // Non-text slash command contexts can throw when resolving a text channel.
+        }
+        return false;
+    }
+
+    private boolean failsRequiredRoleCheck(SlashCommandEvent event)
+    {
+        if(requiredRole==null)
+            return false;
+
+        if(!(event.getChannelType() == ChannelType.TEXT)
+                || event.getMember()==null
+                || event.getMember().getRoles().stream().noneMatch(r -> r.getName().equalsIgnoreCase(requiredRole)))
+        {
+            terminate(event, client.getError()+" You must have a role called `"+requiredRole+"` to use that!", client);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean failsContextAndPermissionChecks(SlashCommandEvent event)
+    {
+        if(event.getChannelType() == ChannelType.PRIVATE)
+        {
+            if(guildOnly)
+            {
+                terminate(event, client.getError()+" This command cannot be used in direct messages", client);
+                return true;
+            }
+            return false;
         }
 
-        // Check required role
-        if(requiredRole!=null)
-            if(!(event.getChannelType() == ChannelType.TEXT) || event.getMember().getRoles().stream().noneMatch(r -> r.getName().equalsIgnoreCase(requiredRole)))
-            {
-                terminate(event, client.getError()+" You must have a role called `"+requiredRole+"` to use that!", client);
-                return;
-            }
+        if(failsUserPermissions(event) || failsBotPermissions(event))
+            return true;
 
-        // Check command execution requirements
-        if(event.getChannelType() != ChannelType.PRIVATE)
+        if(nsfwOnly && event.getChannelType() == ChannelType.TEXT && !event.getTextChannel().isNSFW())
         {
-            // Check user permissions
-            for(Permission p: userPermissions)
-            {
-                // This is normally non-null for guild executions
-                if(event.getMember() == null)
-                    continue;
+            terminate(event, "This command may only be used in NSFW text channels!", client);
+            return true;
+        }
 
-                if(p.isChannel())
+        return false;
+    }
+
+    private boolean failsUserPermissions(SlashCommandEvent event)
+    {
+        for(Permission p: userPermissions)
+        {
+            if(event.getMember() == null)
+                continue;
+
+            if(p.isChannel())
+            {
+                if(!event.getMember().hasPermission(event.getGuildChannel(), p))
                 {
-                    if(!event.getMember().hasPermission(event.getGuildChannel(), p))
-                    {
-                        terminate(event, String.format(userMissingPermMessage, client.getError(), p.getName(), "channel"), client);
-                        return;
-                    }
+                    terminate(event, String.format(userMissingPermMessage, client.getError(), p.getName(), "channel"), client);
+                    return true;
                 }
-                else
+            }
+            else if(!event.getMember().hasPermission(p))
+            {
+                terminate(event, String.format(userMissingPermMessage, client.getError(), p.getName(), "server"), client);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean failsBotPermissions(SlashCommandEvent event)
+    {
+        Member selfMember = event.getGuild() != null ? event.getGuild().getSelfMember() : null;
+        for (Permission p : botPermissions)
+        {
+            if (p == Permission.VIEW_CHANNEL || p == Permission.MESSAGE_EMBED_LINKS)
+                continue;
+
+            if (p.isChannel())
+            {
+                GuildVoiceState voiceState = event.getMember() != null ? event.getMember().getVoiceState() : null;
+                AudioChannelUnion channel = voiceState != null ? voiceState.getChannel() : null;
+                if (channel == null || !channel.getType().isAudio())
                 {
-                    if(!event.getMember().hasPermission(p))
-                    {
-                        terminate(event, String.format(userMissingPermMessage, client.getError(), p.getName(), "server"), client);
-                        return;
-                    }
+                    terminate(event, client.getError() + " You must be in a voice channel to use that!", client);
+                    return true;
                 }
+                if (selfMember == null || !selfMember.hasPermission(channel, p))
+                {
+                    terminate(event, String.format(botMissingPermMessage, client.getError(), p.getName(), "voice channel"), client);
+                    return true;
+                }
+                continue;
             }
 
-            // Check bot permissions
-            for (Permission p : botPermissions) {
-                // Skip permissions that are not strictly required for operation
-                if (p == Permission.VIEW_CHANNEL || p == Permission.MESSAGE_EMBED_LINKS) {
-                    continue;
-                }
-
-                // Resolve guild and bot member context
-                Member selfMember = event.getGuild() != null ? event.getGuild().getSelfMember() : null;
-
-                if (p.isChannel()) {
-                    // Check channel-level permissions
-                    GuildVoiceState voiceState = event.getMember().getVoiceState();
-                    AudioChannelUnion channel = voiceState != null ? voiceState.getChannel() : null;
-
-                    if (channel == null || !channel.getType().isAudio()) {
-                        terminate(event, client.getError() + " You must be in a voice channel to use that!", client);
-                        return;
-                    }
-
-                    // Check bot permissions inside the voice channel
-                    if (!selfMember.hasPermission(channel, p)) {
-                        terminate(event, String.format(botMissingPermMessage, client.getError(), p.getName(), "voice channel"), client);
-                        return;
-                    }
-                } else {
-                    // Check guild-wide permissions
-                    if (!selfMember.hasPermission(p)) {
-                        terminate(event, String.format(botMissingPermMessage, client.getError(), p.getName(), "server"), client);
-                        return;
-                    }
-                }
-            }
-
-            // Check NSFW requirement
-            if (nsfwOnly && event.getChannelType() == ChannelType.TEXT && !event.getTextChannel().isNSFW())
+            if (selfMember == null || !selfMember.hasPermission(p))
             {
-                terminate(event, "This command may only be used in NSFW text channels!", client);
-                return;
+                terminate(event, String.format(botMissingPermMessage, client.getError(), p.getName(), "server"), client);
+                return true;
             }
         }
-        else if(guildOnly)
+        return false;
+    }
+
+    private boolean failsCooldownCheck(SlashCommandEvent event)
+    {
+        if(cooldown<=0 || isOwner(event, client))
+            return false;
+
+        String key = getCooldownKey(event);
+        int remaining = client.getRemainingCooldown(key);
+        if(remaining>0)
         {
-            terminate(event, client.getError()+" This command cannot be used in direct messages", client);
-            return;
+            terminate(event, getCooldownError(event, remaining, client), client);
+            return true;
         }
 
-        // Check cooldown (owners are exempt)
-        if(cooldown>0 && !(isOwner(event, client)))
-        {
-            String key = getCooldownKey(event);
-            int remaining = client.getRemainingCooldown(key);
-            if(remaining>0)
-            {
-                terminate(event, getCooldownError(event, remaining, client), client);
-                return;
-            }
-            else client.applyCooldown(key, cooldown);
-        }
+        client.applyCooldown(key, cooldown);
+        return false;
+    }
 
-        // Execute command logic
+    private void executeAndNotify(SlashCommandEvent event)
+    {
         try {
             execute(event);
         } catch(Throwable t) {
@@ -200,7 +237,6 @@ public abstract class SlashCommand extends Command
                 client.getListener().onSlashCommandException(event, this, t);
                 return;
             }
-            // Rethrow when no listener is configured
             throw t;
         }
 
@@ -244,82 +280,78 @@ public abstract class SlashCommand extends Command
     
     public CommandData buildCommandData()
     {
-        // Build command definition
         SlashCommandData data = Commands.slash(getName(), getHelp());
-        if (!getOptions().isEmpty())
-        {
-            data.addOptions(getOptions());
-        }
-
-        // Apply name localizations
-        if (!getNameLocalization().isEmpty())
-        {
-            // Apply localization values
-            data.setNameLocalizations(getNameLocalization());
-        }
-        // Apply description localizations
-        if (!getDescriptionLocalization().isEmpty())
-        {
-            // Apply localization values
-            data.setDescriptionLocalizations(getDescriptionLocalization());
-        }
-
-        // Apply subcommands
-        if (children.length != 0)
-        {
-            // Map used to aggregate subcommand groups
-            Map<String, SubcommandGroupData> groupData = new HashMap<>();
-            for (SlashCommand child : children)
-            {
-                // Build subcommand definition
-                SubcommandData subcommandData = new SubcommandData(child.getName(), child.getHelp());
-                // Apply options
-                if (!child.getOptions().isEmpty())
-                {
-                    subcommandData.addOptions(child.getOptions());
-                }
-
-                // Apply child command name localizations
-                if (!child.getNameLocalization().isEmpty())
-                {
-                    // Apply localization values
-                    subcommandData.setNameLocalizations(child.getNameLocalization());
-                }
-                // Apply child command description localizations
-                if (!child.getDescriptionLocalization().isEmpty())
-                {
-                    // Apply localization values
-                    subcommandData.setDescriptionLocalizations(child.getDescriptionLocalization());
-                }
-
-                // If the child belongs to a subcommand group
-                if (child.getSubcommandGroup() != null)
-                {
-                    SubcommandGroupData group = child.getSubcommandGroup();
-
-                    SubcommandGroupData newData = groupData.getOrDefault(group.getName(), group)
-                            .addSubcommands(subcommandData);
-
-                    groupData.put(group.getName(), newData);
-                }
-                // Add directly when no group is specified
-                else
-                {
-                    data.addSubcommands(subcommandData);
-                }
-            }
-            if (!groupData.isEmpty())
-                data.addSubcommandGroups(groupData.values());
-        }
-
-        if (this.getUserPermissions() == null)
-            data.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
-        else
-            data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(this.getUserPermissions()));
-
-        //data.setGuildOnly(this.guildOnly);
+        addOptions(data, getOptions());
+        applyLocalizations(data, getNameLocalization(), getDescriptionLocalization());
+        addChildren(data);
+        applyDefaultPermissions(data);
 
         return data;
+    }
+
+    private void addOptions(SlashCommandData data, List<OptionData> optionData)
+    {
+        if (!optionData.isEmpty())
+            data.addOptions(optionData);
+    }
+
+    private void applyLocalizations(SlashCommandData data, Map<DiscordLocale, String> names, Map<DiscordLocale, String> descriptions)
+    {
+        if (!names.isEmpty())
+            data.setNameLocalizations(names);
+        if (!descriptions.isEmpty())
+            data.setDescriptionLocalizations(descriptions);
+    }
+
+    private void applyLocalizations(SubcommandData data, Map<DiscordLocale, String> names, Map<DiscordLocale, String> descriptions)
+    {
+        if (!names.isEmpty())
+            data.setNameLocalizations(names);
+        if (!descriptions.isEmpty())
+            data.setDescriptionLocalizations(descriptions);
+    }
+
+    private void addChildren(SlashCommandData data)
+    {
+        if (children.length == 0)
+            return;
+
+        Map<String, SubcommandGroupData> groupedSubcommands = new HashMap<>();
+        for (SlashCommand child : children)
+        {
+            SubcommandData childData = toSubcommandData(child);
+            SubcommandGroupData group = child.getSubcommandGroup();
+            if (group == null)
+            {
+                data.addSubcommands(childData);
+                continue;
+            }
+
+            SubcommandGroupData groupData = groupedSubcommands.getOrDefault(group.getName(), group);
+            groupedSubcommands.put(group.getName(), groupData.addSubcommands(childData));
+        }
+
+        if (!groupedSubcommands.isEmpty())
+            data.addSubcommandGroups(groupedSubcommands.values());
+    }
+
+    private SubcommandData toSubcommandData(SlashCommand child)
+    {
+        SubcommandData childData = new SubcommandData(child.getName(), child.getHelp());
+        if (!child.getOptions().isEmpty())
+            childData.addOptions(child.getOptions());
+        applyLocalizations(childData, child.getNameLocalization(), child.getDescriptionLocalization());
+        return childData;
+    }
+
+    private void applyDefaultPermissions(SlashCommandData data)
+    {
+        if (this.getUserPermissions() == null)
+        {
+            data.setDefaultPermissions(DefaultMemberPermissions.DISABLED);
+            return;
+        }
+        data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(this.getUserPermissions()));
     }
 
     
