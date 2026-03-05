@@ -272,7 +272,7 @@
     margin-bottom: 0;
     display: flex;
     flex-direction: column;
-    padding: 15px 15px 20px 15px;
+    padding: 15px 15px 20px;
     flex: 1 1 0; /* Allow it to expand and shrink properly */
     min-height: 0; /* Critical for nested flex scrolling */
     position: relative; /* For absolute positioning of elements inside */
@@ -937,14 +937,6 @@
 }
 
 /* Code Blocks */
-code {
-    background-color: #2b2d31;
-    color: #dcddde;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 0.9em;
-}
 
 /* No Channel Selected State - Make it fill the available space */
 .no-channel-selected {
@@ -977,12 +969,6 @@ code {
 }
 
 /* Message Text */
-.message-text {
-    word-break: break-word;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    color: #dcddde; /* Discord message text */
-}
 
 /* Markdown Elements */
 /* Code blocks */

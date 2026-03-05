@@ -1252,28 +1252,7 @@ const ChannelsManager = (function() {
             // If successful, update channel messages
             if (data.success && selectedChannelId) {
                 await refreshChannelMessages(selectedChannelId);
-
-                const loweredCommand = command.toLowerCase();
-                if (loweredCommand.startsWith('/vol') || loweredCommand.startsWith('vol')) {
-                    if (typeof Player !== 'undefined' && Player.fetchStatus) {
-                        Player.fetchStatus();
-                    }
-                }
-                
-                // If it's a play/skip/stop command, update the queue and status
-                if (
-                    loweredCommand.startsWith('/play') || 
-                    loweredCommand.startsWith('play') || 
-                    loweredCommand.startsWith('/skip') || 
-                    loweredCommand.startsWith('skip') || 
-                    loweredCommand.startsWith('/stop') || 
-                    loweredCommand.startsWith('stop')
-                ) {
-                    if (typeof Player !== 'undefined') {
-                        if (Player.fetchQueue) Player.fetchQueue();
-                        if (Player.fetchStatus) Player.fetchStatus();
-                    }
-                }
+                refreshPlayerAfterCommand(command);
             }
         } catch (error) {
             console.error('Error executing command directly:', error);
@@ -1283,6 +1262,38 @@ const ChannelsManager = (function() {
                 UI.showToast('Error executing command: ' + error.message, 'error');
             }
         }
+    }
+
+    function refreshPlayerAfterCommand(command) {
+        const loweredCommand = command.toLowerCase();
+        if (typeof Player === 'undefined') {
+            return;
+        }
+
+        if (isVolumeCommand(loweredCommand)) {
+            if (Player.fetchStatus) {
+                Player.fetchStatus();
+            }
+            return;
+        }
+
+        if (isPlaybackQueueCommand(loweredCommand)) {
+            if (Player.fetchQueue) Player.fetchQueue();
+            if (Player.fetchStatus) Player.fetchStatus();
+        }
+    }
+
+    function isVolumeCommand(loweredCommand) {
+        return loweredCommand.startsWith('/vol') || loweredCommand.startsWith('vol');
+    }
+
+    function isPlaybackQueueCommand(loweredCommand) {
+        return loweredCommand.startsWith('/play')
+            || loweredCommand.startsWith('play')
+            || loweredCommand.startsWith('/skip')
+            || loweredCommand.startsWith('skip')
+            || loweredCommand.startsWith('/stop')
+            || loweredCommand.startsWith('stop');
     }
     
     /**
@@ -1495,104 +1506,9 @@ const ChannelsManager = (function() {
                 if (message.embeds && message.embeds.length > 0) {
                     embedsHTML = `
                         <div class="message-embeds">
-                            ${message.embeds.map(embed => {
-                                // If this is an auto-embed for an image we are already displaying directly, skip it.
-                                if (isOnlyImageLink && embed.url === imageMatch[0]) {
-                                    return ''; // Skip this embed
-                                }
-
-                                // Border color
-                                const borderColor = embed.color ? `#${embed.color.toString(16).padStart(6, '0')}` : '#4f545c';
-                                
-                                // Author section
-                                let authorHTML = '';
-                                if (embed.author) {
-                                    authorHTML = `
-                                        <div class="embed-author">
-                                            ${embed.author.iconUrl ? `<img src="${embed.author.iconUrl}" class="embed-author-icon" alt="Author">` : ''}
-                                            ${embed.author.url ? 
-                                                `<a href="${embed.author.url}" class="embed-author-name" target="_blank">${embed.author.name}</a>` : 
-                                                `<span class="embed-author-name">${embed.author.name}</span>`
-                                            }
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Title section
-                                let titleHTML = '';
-                                if (embed.title) {
-                                    titleHTML = `
-                                        <div class="embed-title">
-                                            ${embed.url ? 
-                                                `<a href="${embed.url}" target="_blank">${embed.title}</a>` : 
-                                                embed.title
-                                            }
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Description section
-                                let descriptionHTML = '';
-                                if (embed.description) {
-                                    descriptionHTML = `<div class="embed-description">${formatText(embed.description)}</div>`;
-                                }
-                                
-                                // Thumbnail
-                                let thumbnailHTML = '';
-                                if (embed.thumbnail && embed.thumbnail.url) {
-                                    thumbnailHTML = `<img src="${embed.thumbnail.url}" class="embed-thumbnail" alt="Thumbnail">`;
-                                }
-                                
-                                // Fields section
-                                let fieldsHTML = '';
-                                if (embed.fields && embed.fields.length > 0) {
-                                    fieldsHTML = `
-                                        <div class="embed-fields">
-                                            ${embed.fields.map(field => `
-                                                <div class="embed-field ${field.inline ? 'inline' : ''}">
-                                                    <div class="embed-field-name">${field.name}</div>
-                                                    <div class="embed-field-value">${formatText(field.value)}</div>
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Image section
-                                let imageHTML = '';
-                                if (embed.image && embed.image.url) {
-                                    imageHTML = `<img src="${embed.image.url}" class="embed-image" alt="Image">`;
-                                }
-                                
-                                // Footer section
-                                let footerHTML = '';
-                                if (embed.footer || embed.timestamp) {
-                                    const footerText = embed.footer ? embed.footer.text : '';
-                                    const footerTime = embed.timestamp ? new Date(embed.timestamp).toLocaleString() : '';
-                                    
-                                    footerHTML = `
-                                        <div class="embed-footer">
-                                            ${embed.footer && embed.footer.iconUrl ? 
-                                                `<img src="${embed.footer.iconUrl}" class="embed-footer-icon" alt="Footer">` : ''
-                                            }
-                                            <span>${footerText}${footerText && footerTime ? ' • ' : ''}${footerTime}</span>
-                                        </div>
-                                    `;
-                                }
-                                
-                                // Combine all sections
-                                return `
-                                    <div class="message-embed" style="border-left-color: ${borderColor}">
-                                        ${thumbnailHTML}
-                                        ${authorHTML}
-                                        ${titleHTML}
-                                        ${descriptionHTML}
-                                        ${fieldsHTML}
-                                        ${imageHTML}
-                                        ${footerHTML}
-                                    </div>
-                                `;
-                            }).join('')}
+                            ${message.embeds
+                                .map(embed => renderEmbedCard(embed, formatText, isOnlyImageLink, imageMatch ? imageMatch[0] : null))
+                                .join('')}
                         </div>
                     `;
                 }
@@ -1629,6 +1545,84 @@ const ChannelsManager = (function() {
         });
         
         return htmlOutput;
+    }
+
+    function renderEmbedCard(embed, formatText, isOnlyImageLink, linkedImageUrl) {
+        if (isOnlyImageLink && linkedImageUrl && embed.url === linkedImageUrl) {
+            return '';
+        }
+
+        const borderColor = embed.color ? `#${embed.color.toString(16).padStart(6, '0')}` : '#4f545c';
+        const authorHTML = renderEmbedAuthor(embed.author);
+        const titleHTML = renderEmbedTitle(embed.title, embed.url);
+        const descriptionHTML = embed.description ? `<div class="embed-description">${formatText(embed.description)}</div>` : '';
+        const thumbnailHTML = embed.thumbnail && embed.thumbnail.url
+            ? `<img src="${embed.thumbnail.url}" class="embed-thumbnail" alt="Thumbnail">`
+            : '';
+        const fieldsHTML = renderEmbedFields(embed.fields, formatText);
+        const imageHTML = embed.image && embed.image.url
+            ? `<img src="${embed.image.url}" class="embed-image" alt="Image">`
+            : '';
+        const footerHTML = renderEmbedFooter(embed.footer, embed.timestamp);
+
+        return `
+            <div class="message-embed" style="border-left-color: ${borderColor}">
+                ${thumbnailHTML}
+                ${authorHTML}
+                ${titleHTML}
+                ${descriptionHTML}
+                ${fieldsHTML}
+                ${imageHTML}
+                ${footerHTML}
+            </div>
+        `;
+    }
+
+    function renderEmbedAuthor(author) {
+        if (!author) return '';
+        return `
+            <div class="embed-author">
+                ${author.iconUrl ? `<img src="${author.iconUrl}" class="embed-author-icon" alt="Author">` : ''}
+                ${author.url
+                    ? `<a href="${author.url}" class="embed-author-name" target="_blank">${author.name}</a>`
+                    : `<span class="embed-author-name">${author.name}</span>`}
+            </div>
+        `;
+    }
+
+    function renderEmbedTitle(title, url) {
+        if (!title) return '';
+        return `
+            <div class="embed-title">
+                ${url ? `<a href="${url}" target="_blank">${title}</a>` : title}
+            </div>
+        `;
+    }
+
+    function renderEmbedFields(fields, formatText) {
+        if (!fields || fields.length === 0) return '';
+        return `
+            <div class="embed-fields">
+                ${fields.map(field => `
+                    <div class="embed-field ${field.inline ? 'inline' : ''}">
+                        <div class="embed-field-name">${field.name}</div>
+                        <div class="embed-field-value">${formatText(field.value)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function renderEmbedFooter(footer, timestamp) {
+        if (!footer && !timestamp) return '';
+        const footerText = footer ? footer.text : '';
+        const footerTime = timestamp ? new Date(timestamp).toLocaleString() : '';
+        return `
+            <div class="embed-footer">
+                ${footer && footer.iconUrl ? `<img src="${footer.iconUrl}" class="embed-footer-icon" alt="Footer">` : ''}
+                <span>${footerText}${footerText && footerTime ? ' • ' : ''}${footerTime}</span>
+            </div>
+        `;
     }
     
     /**
@@ -1672,61 +1666,80 @@ const ChannelsManager = (function() {
     }
 
     function buildUserProfileHtml(profile) {
-        let profileHtml = '';
         const bannerStyle = profile.bannerUrl ? `background-image: url('${profile.bannerUrl}');` : '';
         const accentColorStyle = profile.accentColorHex ? `background-color: ${profile.accentColorHex};` : '';
 
-        profileHtml += `<div class="profile-banner" style="${bannerStyle || accentColorStyle}"></div>`;
-        profileHtml += `<div class="profile-header">`;
-        profileHtml += `  <div class="profile-avatar-wrapper">`;
-        profileHtml += `    <img src="${profile.avatarUrl || 'img/default-avatar.png'}" alt="Avatar" class="profile-avatar">`;
-        profileHtml += `    <span class="profile-status-indicator ${profile.onlineStatus ? profile.onlineStatus.toLowerCase() : 'offline'}"></span>`;
-        profileHtml += `  </div>`;
-        profileHtml += `</div>`;
+        return `
+            <div class="profile-banner" style="${bannerStyle || accentColorStyle}"></div>
+            <div class="profile-header">
+                <div class="profile-avatar-wrapper">
+                    <img src="${profile.avatarUrl || 'img/default-avatar.png'}" alt="Avatar" class="profile-avatar">
+                    <span class="profile-status-indicator ${profile.onlineStatus ? profile.onlineStatus.toLowerCase() : 'offline'}"></span>
+                </div>
+            </div>
+            <div class="profile-content-wrapper">
+                <div class="profile-content">
+                    ${buildProfileIdentityHtml(profile)}
+                    ${buildProfileActivityHtml(profile)}
+                    ${buildProfileDatesHtml(profile)}
+                    ${buildProfileRolesHtml(profile)}
+                    <div class="profile-section"><div class="profile-section-header">Note</div><textarea class="profile-note-input" placeholder="Add a note"></textarea></div>
+                </div>
+            </div>
+        `;
+    }
 
-        profileHtml += `<div class="profile-content-wrapper"><div class="profile-content">`;
-        profileHtml += `  <div class="profile-username-details">`;
-        profileHtml += `    <span class="profile-effective-name">${escapeHtml(profile.effectiveName)}</span>`;
-        if (profile.username) {
-            profileHtml += `    <span class="profile-username-discriminator">${escapeHtml(profile.username)}${profile.discriminator !== '0' ? `#${profile.discriminator}` : ''}</span>`;
-        }
-        if (profile.bot) {
-            profileHtml += `    <span class="profile-bot-tag">BOT</span>`;
-        }
-        profileHtml += `  </div>`;
+    function buildProfileIdentityHtml(profile) {
+        return `
+            <div class="profile-username-details">
+                <span class="profile-effective-name">${escapeHtml(profile.effectiveName)}</span>
+                ${profile.username ? `<span class="profile-username-discriminator">${escapeHtml(profile.username)}${profile.discriminator !== '0' ? `#${profile.discriminator}` : ''}</span>` : ''}
+                ${profile.bot ? '<span class="profile-bot-tag">BOT</span>' : ''}
+            </div>
+        `;
+    }
 
-        if (profile.activities && profile.activities.length > 0) {
-            const mainActivity = profile.activities[0];
-            profileHtml += `<div class="profile-activity">`;
-            profileHtml += `  <strong>${escapeHtml(mainActivity.type.charAt(0).toUpperCase() + mainActivity.type.slice(1).toLowerCase())} ${escapeHtml(mainActivity.name)}</strong>`;
-            if (mainActivity.details) profileHtml += `  <div class="activity-details">${escapeHtml(mainActivity.details)}</div>`;
-            if (mainActivity.state) profileHtml += `  <div class="activity-state">${escapeHtml(mainActivity.state)}</div>`;
-            profileHtml += `</div>`;
+    function buildProfileActivityHtml(profile) {
+        if (!profile.activities || profile.activities.length === 0) {
+            return '';
         }
 
+        const mainActivity = profile.activities[0];
+        return `
+            <div class="profile-activity">
+                <strong>${escapeHtml(mainActivity.type.charAt(0).toUpperCase() + mainActivity.type.slice(1).toLowerCase())} ${escapeHtml(mainActivity.name)}</strong>
+                ${mainActivity.details ? `<div class="activity-details">${escapeHtml(mainActivity.details)}</div>` : ''}
+                ${mainActivity.state ? `<div class="activity-state">${escapeHtml(mainActivity.state)}</div>` : ''}
+            </div>
+        `;
+    }
+
+    function buildProfileDatesHtml(profile) {
+        let html = '';
         if (profile.timeJoined) {
             const joinDate = new Date(profile.timeJoined);
-            profileHtml += `<div class="profile-section"><div class="profile-section-header">Member Since</div><div class="profile-section-content">${joinDate.toLocaleDateString()} (${timeSince(joinDate)})</div></div>`;
+            html += `<div class="profile-section"><div class="profile-section-header">Member Since</div><div class="profile-section-content">${joinDate.toLocaleDateString()} (${timeSince(joinDate)})</div></div>`;
         }
 
         if (profile.timeCreated) {
             const creationDate = new Date(profile.timeCreated);
-            profileHtml += `<div class="profile-section"><div class="profile-section-header">Discord User Since</div><div class="profile-section-content">${creationDate.toLocaleDateString()} (${timeSince(creationDate)})</div></div>`;
+            html += `<div class="profile-section"><div class="profile-section-header">Discord User Since</div><div class="profile-section-content">${creationDate.toLocaleDateString()} (${timeSince(creationDate)})</div></div>`;
+        }
+        return html;
+    }
+
+    function buildProfileRolesHtml(profile) {
+        if (!profile.roles || profile.roles.length === 0) {
+            return '';
         }
 
-        if (profile.roles && profile.roles.length > 0) {
-            profileHtml += `<div class="profile-section">`;
-            profileHtml += `  <div class="profile-section-header">Roles (${profile.roles.length})</div><div class="profile-roles-list">`;
-            profile.roles.forEach(role => {
-                profileHtml += `<span class="profile-role-item" style="border-color: ${role.color || '#FFFFFF'}; background-color: ${hexToRgba(role.color || '#5865F2', 0.1)}; color: ${role.color || '#FFFFFF'}">`;
-                profileHtml += `<span class="profile-role-dot" style="background-color: ${role.color || '#FFFFFF'}"></span>${escapeHtml(role.name)}</span>`;
-            });
-            profileHtml += `  </div></div>`;
-        }
+        const rolesHtml = profile.roles.map(role => `
+            <span class="profile-role-item" style="border-color: ${role.color || '#FFFFFF'}; background-color: ${hexToRgba(role.color || '#5865F2', 0.1)}; color: ${role.color || '#FFFFFF'}">
+                <span class="profile-role-dot" style="background-color: ${role.color || '#FFFFFF'}"></span>${escapeHtml(role.name)}
+            </span>
+        `).join('');
 
-        profileHtml += `<div class="profile-section"><div class="profile-section-header">Note</div><textarea class="profile-note-input" placeholder="Add a note"></textarea></div>`;
-        profileHtml += `</div></div>`;
-        return profileHtml;
+        return `<div class="profile-section"><div class="profile-section-header">Roles (${profile.roles.length})</div><div class="profile-roles-list">${rolesHtml}</div></div>`;
     }
 
     function positionUserProfilePopup(popup, targetElement) {

@@ -1434,6 +1434,228 @@ const HistoryModule = (() => {
         loadHistory();
     };
 
+    const getSourceIconFromType = (sourceType) => {
+        switch (sourceType.toLowerCase()) {
+            case 'instagram':
+                return '<i class="fab fa-instagram source-icon-instagram"></i>';
+            case 'tiktok':
+                return '<i class="fab fa-tiktok source-icon-tiktok"></i>';
+            case 'twitter':
+            case 'x':
+                return '<i class="fab fa-twitter source-icon-twitter"></i>';
+            case 'bilibili':
+                return '<i class="fas fa-tv source-icon-bilibili"></i>';
+            case 'vimeo':
+                return '<i class="fab fa-vimeo source-icon-vimeo"></i>';
+            case 'twitch':
+                return '<i class="fab fa-twitch source-icon-twitch"></i>';
+            case 'soundcloud':
+                return '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
+            case 'youtube':
+                return '<i class="fab fa-youtube source-icon-youtube"></i>';
+            default:
+                return '<i class="fas fa-globe source-icon-web"></i>';
+        }
+    };
+
+    const resolveHistoryRecordPresentation = (record) => {
+        const presentation = {
+            title: record.title || 'Unknown Title',
+            thumbnailSrc: 'https://cdn.discordapp.com/embed/avatars/0.png',
+            sourceType: 'Unknown',
+            sourceIcon: '',
+            hasStationLogo: false,
+            stationLogoUrl: '',
+            additionalMetadata: []
+        };
+
+        if (record.gensokyoTitle) {
+            presentation.thumbnailSrc = record.gensokyoAlbumArtUrl || 'https://stream.gensokyoradio.net/images/logo.png';
+            presentation.sourceType = 'Gensokyo Radio';
+            presentation.sourceIcon = '<i class="fas fa-music source-icon-gensokyoradio"></i>';
+            presentation.hasStationLogo = true;
+            presentation.stationLogoUrl = 'https://stream.gensokyoradio.net/images/logo.png';
+            if (record.gensokyoAlbum) presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.gensokyoAlbum });
+            if (record.gensokyoCircle) presentation.additionalMetadata.push({ icon: 'fas fa-users', text: record.gensokyoCircle });
+            if (record.gensokyoYear) presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.gensokyoYear });
+            return presentation;
+        }
+
+        if (record.ytDlpData?.sourceType || record.ytDlpSourceType) {
+            presentation.thumbnailSrc = record.ytDlpData?.thumbnailUrl || record.ytDlpThumbnailUrl || presentation.thumbnailSrc;
+            presentation.sourceType = record.ytDlpData?.sourceType || record.ytDlpSourceType || 'Unknown';
+            const customIconUrl = record.ytDlpData?.sourceIconUrl || record.ytDlpSourceIconUrl;
+            presentation.sourceIcon = customIconUrl
+                ? `<img src="${customIconUrl}" alt="${presentation.sourceType}" style="width: 1em; height: 1em; vertical-align: -0.125em;">`
+                : getSourceIconFromType(presentation.sourceType);
+            return presentation;
+        }
+
+        if (record.spotifyAlbumImageUrl) {
+            presentation.thumbnailSrc = record.spotifyAlbumImageUrl;
+            presentation.sourceType = 'Spotify';
+            presentation.sourceIcon = '<i class="fab fa-spotify source-icon-spotify"></i>';
+            if (record.spotifyAlbumName) presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.spotifyAlbumName });
+            if (record.spotifyReleaseYear) presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.spotifyReleaseYear });
+            return presentation;
+        }
+
+        if (record.youtubeVideoId) {
+            presentation.thumbnailSrc = `https://img.youtube.com/vi/${record.youtubeVideoId}/mqdefault.jpg`;
+            presentation.sourceType = 'YouTube';
+            presentation.sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
+            return presentation;
+        }
+
+        if (record.radioLogoUrl) {
+            presentation.thumbnailSrc = record.radioSongImageUrl || record.radioLogoUrl;
+            if (record.title) {
+                const pipeIndex = record.title.lastIndexOf(' | ');
+                presentation.title = pipeIndex > 0 ? record.title.substring(0, pipeIndex).trim() : record.title;
+            }
+            presentation.sourceType = 'Radio';
+            presentation.sourceIcon = '<i class="fas fa-broadcast-tower source-icon-radio"></i>';
+            presentation.hasStationLogo = true;
+            presentation.stationLogoUrl = record.radioLogoUrl;
+            return presentation;
+        }
+
+        if (record.url && record.url.includes('tiktok.com')) {
+            presentation.sourceType = 'TikTok';
+            presentation.sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
+            if (record.thumbnailUrl) presentation.thumbnailSrc = record.thumbnailUrl;
+            return presentation;
+        }
+
+        if (record.url && record.url.includes('instagram.com')) {
+            presentation.sourceType = 'Instagram';
+            presentation.sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
+            if (record.thumbnailUrl) presentation.thumbnailSrc = record.thumbnailUrl;
+            return presentation;
+        }
+
+        if (record.url && (record.url.includes('twitter.com') || record.url.includes('x.com'))) {
+            presentation.sourceType = 'Twitter';
+            presentation.sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
+            if (record.thumbnailUrl) presentation.thumbnailSrc = record.thumbnailUrl;
+            return presentation;
+        }
+
+        if ((record.url && record.url.includes('soundcloud.com')) || record.soundCloudArtworkUrl) {
+            presentation.thumbnailSrc = record.soundCloudArtworkUrl || 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5b56e1e432.png';
+            presentation.sourceType = 'SoundCloud';
+            presentation.sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
+            return presentation;
+        }
+
+        if (record.localAlbum || record.localGenre || record.localYear || record.localArtworkHash) {
+            presentation.sourceType = 'Local File';
+            presentation.sourceIcon = '<i class="fas fa-file-audio source-icon-local"></i>';
+            presentation.thumbnailSrc = record.localArtworkHash
+                ? `/${record.localArtworkHash}`
+                : 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png';
+            if (record.localAlbum && record.localAlbum !== 'Unknown Album') presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.localAlbum });
+            if (record.localGenre && record.localGenre !== 'Unknown Genre') presentation.additionalMetadata.push({ icon: 'fas fa-tag', text: record.localGenre });
+            if (record.localYear && record.localYear !== '') presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.localYear });
+        }
+
+        return presentation;
+    };
+
+    const buildAdditionalMetadataHtml = (additionalMetadata) => {
+        if (!additionalMetadata || additionalMetadata.length === 0) {
+            return '';
+        }
+
+        let html = '<div class="additional-metadata">';
+        additionalMetadata.forEach(meta => {
+            html += `
+                <div class="metadata-item">
+                    <i class="${meta.icon}"></i> ${meta.text}
+                </div>
+            `;
+        });
+        html += '</div><div class="metadata-separator"></div>';
+        return html;
+    };
+
+    const buildRequesterHtml = (record) => {
+        if (!record.requesterName) return '';
+        return `
+            <div class="metadata-item requester-item" data-requester="${record.requesterName}">
+                ${record.requesterAvatar
+                    ? `<img src="${record.requesterAvatar}" alt="${record.requesterName}" class="requester-avatar">`
+                    : '<i class="fas fa-user"></i>'}
+                ${record.requesterName}
+            </div>
+        `;
+    };
+
+    const bindHistoryItemActions = (historyItem) => {
+        historyItem.querySelector('.play-again-btn').addEventListener('click', function() {
+            const url = this.getAttribute('data-url');
+            const title = this.getAttribute('data-title');
+            const artist = this.getAttribute('data-artist');
+            const sourceType = this.getAttribute('data-source-type');
+
+            if (sourceType === 'Radio' || sourceType === 'Gensokyo Radio') {
+                addToQueueViaSearch(title, artist, sourceType);
+            } else {
+                addToQueue(url);
+            }
+        });
+
+        historyItem.querySelector('.open-url-btn').addEventListener('click', function() {
+            const url = this.getAttribute('data-url');
+            window.open(url, '_blank');
+        });
+    };
+
+    const buildHistoryItemHtml = (record, presentation) => {
+        const additionalMetadataHtml = buildAdditionalMetadataHtml(presentation.additionalMetadata);
+        const requesterHtml = buildRequesterHtml(record);
+        const safeThumb = safeThumbnail(presentation.thumbnailSrc);
+
+        return `
+            <div class="history-item-thumbnail">
+                <img src="${safeThumb}" alt="${presentation.title}" referrerpolicy="no-referrer" onerror="handleImageError(this)">
+            </div>
+            <div class="history-item-info">
+                <div class="history-item-title">${presentation.title || 'Unknown Title'}</div>
+                <div class="history-item-artist">${record.artist || 'Unknown Artist'}</div>
+                ${additionalMetadataHtml}
+                <div class="history-item-metadata">
+                    ${(presentation.sourceType !== 'Radio' && presentation.sourceType !== 'Gensokyo Radio') ? `
+                    <div class="metadata-item">
+                        <i class="fas fa-clock"></i> ${record.formattedDuration}
+                    </div>` : ''}
+                    <div class="metadata-item">
+                        ${presentation.sourceIcon} ${presentation.sourceType}
+                    </div>
+                    ${requesterHtml}
+                    <div class="metadata-item">
+                        <i class="fas fa-server"></i> ${record.guildName}
+                    </div>
+                    <div class="metadata-item">
+                        <i class="fas fa-calendar"></i> ${record.formattedPlayedAt}
+                    </div>
+                </div>
+            </div>
+            ${presentation.hasStationLogo ? `
+            <div class="station-logo-container">
+                <img src="${presentation.stationLogoUrl}" alt="Station Logo" class="station-logo">
+            </div>` : ''}
+            <div class="history-item-actions">
+                <button class="history-action-btn play-again-btn" data-url="${record.spotifyTrackId ? `https://open.spotify.com/track/${record.spotifyTrackId}` : record.url}" data-title="${presentation.title || ''}" data-artist="${record.artist || ''}" data-source-type="${presentation.sourceType}" title="Add to queue">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button class="history-action-btn open-url-btn" data-url="${record.url}" title="Open URL">
+                    <i class="fas fa-external-link-alt"></i>
+                </button>
+            </div>
+        `;
+    };
+
     /**
      * Render history items in the list
      */
@@ -1465,294 +1687,9 @@ const HistoryModule = (() => {
         recordsToRender.forEach(record => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
-            
-            // Determine thumbnail image source
-            let thumbnailSrc = 'https://cdn.discordapp.com/embed/avatars/0.png'; // Default
-            let sourceType = 'Unknown';
-            let sourceIcon = '';
-            let hasStationLogo = false;
-            let stationLogoUrl = '';
-            let additionalMetadata = [];
-
-            // Check for Gensokyo Radio first (higher priority than other types)
-            if (record.gensokyoTitle) {
-                // Use album art as thumbnail
-                if (record.gensokyoAlbumArtUrl) {
-                    thumbnailSrc = record.gensokyoAlbumArtUrl;
-                } else {
-                    thumbnailSrc = 'https://stream.gensokyoradio.net/images/logo.png'; // Default Gensokyo Radio logo
-                }
-                
-                sourceType = 'Gensokyo Radio';
-                sourceIcon = '<i class="fas fa-music source-icon-gensokyoradio"></i>';
-                hasStationLogo = true;
-                stationLogoUrl = 'https://stream.gensokyoradio.net/images/logo.png';
-                
-                // Add additional metadata for Gensokyo Radio
-                if (record.gensokyoAlbum) {
-                    additionalMetadata.push({
-                        icon: 'fas fa-compact-disc',
-                        text: record.gensokyoAlbum
-                    });
-                }
-                if (record.gensokyoCircle) {
-                    additionalMetadata.push({
-                        icon: 'fas fa-users',
-                        text: record.gensokyoCircle
-                    });
-                }
-                if (record.gensokyoYear) {
-                    additionalMetadata.push({
-                        icon: 'fas fa-calendar-alt',
-                        text: record.gensokyoYear
-                    });
-                }
-            }
-            // Check for YtDlp metadata
-            else if (record.ytDlpData?.sourceType || record.ytDlpSourceType) {
-                if (record.ytDlpData?.thumbnailUrl) {
-                    thumbnailSrc = record.ytDlpData.thumbnailUrl;
-                } else if (record.ytDlpThumbnailUrl) {
-                    thumbnailSrc = record.ytDlpThumbnailUrl;
-                }
-                
-                sourceType = record.ytDlpData?.sourceType || record.ytDlpSourceType || 'Unknown';
-                const customIconUrl = record.ytDlpData?.sourceIconUrl || record.ytDlpSourceIconUrl;
-
-                if (customIconUrl) {
-                    sourceIcon = `<img src="${customIconUrl}" alt="${sourceType}" style="width: 1em; height: 1em; vertical-align: -0.125em;">`;
-                } else {
-                    // Set icon based on source type
-                    switch(sourceType.toLowerCase()) {
-                        case 'instagram':
-                            sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
-                            break;
-                        case 'tiktok':
-                            sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
-                            break;
-                        case 'twitter':
-                        case 'x':
-                            sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
-                            break;
-                        case 'bilibili':
-                            sourceIcon = '<i class="fas fa-tv source-icon-bilibili"></i>';
-                            break;
-                        case 'vimeo':
-                            sourceIcon = '<i class="fab fa-vimeo source-icon-vimeo"></i>';
-                            break;
-                        case 'twitch':
-                            sourceIcon = '<i class="fab fa-twitch source-icon-twitch"></i>';
-                            break;
-                        case 'soundcloud':
-                            sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
-                            break;
-                        case 'youtube':
-                            sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
-                            break;
-                        default:
-                            sourceIcon = '<i class="fas fa-globe source-icon-web"></i>';
-                    }
-                }
-            }
-            // Check for Spotify
-            else if (record.spotifyAlbumImageUrl) {
-                thumbnailSrc = record.spotifyAlbumImageUrl;
-                sourceType = 'Spotify';
-                sourceIcon = '<i class="fab fa-spotify source-icon-spotify"></i>';
-                
-                // Add additional metadata for Spotify
-                if (record.spotifyAlbumName) {
-                    additionalMetadata.push({
-                        icon: 'fas fa-compact-disc',
-                        text: record.spotifyAlbumName
-                    });
-                }
-                if (record.spotifyReleaseYear) {
-                    additionalMetadata.push({
-                        icon: 'fas fa-calendar-alt',
-                        text: record.spotifyReleaseYear
-                    });
-                }
-            } 
-            // Check for YouTube
-            else if (record.youtubeVideoId) {
-                thumbnailSrc = `https://img.youtube.com/vi/${record.youtubeVideoId}/mqdefault.jpg`;
-                sourceType = 'YouTube';
-                sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
-            } 
-            // Check for Radio
-            else if (record.radioLogoUrl) {
-                // For radio tracks, use the song image as the main thumbnail if available
-                if (record.radioSongImageUrl) {
-                    thumbnailSrc = record.radioSongImageUrl;
-                } else {
-                    thumbnailSrc = record.radioLogoUrl;
-                }
-                
-                // Clean up title by removing "| RADIO NAME" if present
-                if (record.title) {
-                    const pipeIndex = record.title.lastIndexOf(" | ");
-                    if (pipeIndex > 0) {
-                        record.title = record.title.substring(0, pipeIndex).trim();
-                    }
-                }
-                
-                sourceType = 'Radio';
-                sourceIcon = '<i class="fas fa-broadcast-tower source-icon-radio"></i>';
-                hasStationLogo = true;
-                stationLogoUrl = record.radioLogoUrl;
-            } 
-            // Check for TikTok
-            else if (record.url && record.url.includes('tiktok.com')) {
-                sourceType = 'TikTok';
-                sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
-                if (record.thumbnailUrl) {
-                    thumbnailSrc = record.thumbnailUrl;
-                }
-            }
-            // Check for Instagram
-            else if (record.url && record.url.includes('instagram.com')) {
-                sourceType = 'Instagram';
-                sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
-                if (record.thumbnailUrl) {
-                    thumbnailSrc = record.thumbnailUrl;
-                }
-            }
-            // Check for Twitter/X
-            else if (record.url && (record.url.includes('twitter.com') || record.url.includes('x.com'))) {
-                sourceType = 'Twitter';
-                sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
-                if (record.thumbnailUrl) {
-                    thumbnailSrc = record.thumbnailUrl;
-                }
-            }
-            // Check for SoundCloud
-            else if (record.url && record.url.includes('soundcloud.com') || record.soundCloudArtworkUrl) {
-                if (record.soundCloudArtworkUrl) {
-                    thumbnailSrc = record.soundCloudArtworkUrl;
-                } else {
-                    thumbnailSrc = 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5b56e1e432.png';
-                }
-                sourceType = 'SoundCloud';
-                sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
-            }
-            // Check for Local files
-            else if (record.localAlbum || record.localGenre || record.localYear || record.localArtworkHash) {
-                sourceType = 'Local File';
-                sourceIcon = '<i class="fas fa-file-audio source-icon-local"></i>';
-                if (record.localArtworkHash) {
-                    thumbnailSrc = `/${record.localArtworkHash}`; // Adjusted path to match how it's saved
-                } else {
-                    thumbnailSrc = 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png'; // Default local file icon
-                }
-
-                // Add additional metadata for Local Files
-                if (record.localAlbum && record.localAlbum !== "Unknown Album") {
-                    additionalMetadata.push({
-                        icon: 'fas fa-compact-disc',
-                        text: record.localAlbum
-                    });
-                }
-                if (record.localGenre && record.localGenre !== "Unknown Genre") {
-                    additionalMetadata.push({
-                        icon: 'fas fa-tag',
-                        text: record.localGenre
-                    });
-                }
-                if (record.localYear && record.localYear !== "") {
-                    additionalMetadata.push({
-                        icon: 'fas fa-calendar-alt',
-                        text: record.localYear
-                    });
-                }
-            }
-            
-            // Build additional metadata HTML if any
-            let additionalMetadataHtml = '';
-            if (additionalMetadata.length > 0) {
-                additionalMetadataHtml = '<div class="additional-metadata">';
-                additionalMetadata.forEach(meta => {
-                    additionalMetadataHtml += `
-                        <div class="metadata-item">
-                            <i class="${meta.icon}"></i> ${meta.text}
-                        </div>
-                    `;
-                });
-                additionalMetadataHtml += '</div><div class="metadata-separator"></div>';
-            }
-            
-            // Requester info with avatar if available
-            const requesterHtml = record.requesterName ? `
-                <div class="metadata-item requester-item" data-requester="${record.requesterName}">
-                    ${record.requesterAvatar ? 
-                        `<img src="${record.requesterAvatar}" alt="${record.requesterName}" class="requester-avatar">` : 
-                        '<i class="fas fa-user"></i>'} 
-                    ${record.requesterName}
-                </div>
-            ` : '';
-            
-            thumbnailSrc = safeThumbnail(thumbnailSrc);
-
-            // Build HTML
-            historyItem.innerHTML = `
-                <div class="history-item-thumbnail">
-                    <img src="${thumbnailSrc}" alt="${record.title}" referrerpolicy="no-referrer" onerror="handleImageError(this)">
-                </div>
-                <div class="history-item-info">
-                    <div class="history-item-title">${record.title || 'Unknown Title'}</div>
-                    <div class="history-item-artist">${record.artist || 'Unknown Artist'}</div>
-                    ${additionalMetadataHtml}
-                    <div class="history-item-metadata">
-                        ${(sourceType !== 'Radio' && sourceType !== 'Gensokyo Radio') ? `
-                        <div class="metadata-item">
-                            <i class="fas fa-clock"></i> ${record.formattedDuration}
-                        </div>` : ''}
-                        <div class="metadata-item">
-                            ${sourceIcon} ${sourceType}
-                        </div>
-                        ${requesterHtml}
-                        <div class="metadata-item">
-                            <i class="fas fa-server"></i> ${record.guildName}
-                        </div>
-                        <div class="metadata-item">
-                            <i class="fas fa-calendar"></i> ${record.formattedPlayedAt}
-                        </div>
-                    </div>
-                </div>
-                ${hasStationLogo ? `
-                <div class="station-logo-container">
-                    <img src="${stationLogoUrl}" alt="Station Logo" class="station-logo">
-                </div>` : ''}
-                <div class="history-item-actions">
-                    <button class="history-action-btn play-again-btn" data-url="${record.spotifyTrackId ? `https://open.spotify.com/track/${record.spotifyTrackId}` : record.url}" data-title="${record.title || ''}" data-artist="${record.artist || ''}" data-source-type="${sourceType}" title="Add to queue">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                    <button class="history-action-btn open-url-btn" data-url="${record.url}" title="Open URL">
-                        <i class="fas fa-external-link-alt"></i>
-                    </button>
-                </div>
-            `;
-            
-            // Add play again event listener
-            historyItem.querySelector('.play-again-btn').addEventListener('click', function() {
-                const url = this.getAttribute('data-url');
-                const title = this.getAttribute('data-title');
-                const artist = this.getAttribute('data-artist');
-                const sourceType = this.getAttribute('data-source-type');
-                
-                // Handle Radio and Gensokyo Radio tracks differently
-                if (sourceType === 'Radio' || sourceType === 'Gensokyo Radio') {
-                    addToQueueViaSearch(title, artist, sourceType);
-                } else {
-                    addToQueue(url);
-                }
-            });
-            
-            // Add open URL event listener
-            historyItem.querySelector('.open-url-btn').addEventListener('click', function() {
-                const url = this.getAttribute('data-url');
-                window.open(url, '_blank');
-            });
+            const presentation = resolveHistoryRecordPresentation(record);
+            historyItem.innerHTML = buildHistoryItemHtml(record, presentation);
+            bindHistoryItemActions(historyItem);
             
             fragment.appendChild(historyItem);
         });

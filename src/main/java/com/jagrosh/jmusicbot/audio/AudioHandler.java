@@ -1675,14 +1675,38 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
 
         if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
             switch (ytPlatform) {
-                case INSTAGRAM -> { sourcePlatform = "Instagram"; sourceKey = "instagram"; }
-                case TIKTOK -> { sourcePlatform = "TikTok"; sourceKey = "tiktok"; }
-                case TWITTER -> { sourcePlatform = "Twitter"; sourceKey = "twitter"; }
-                case BILIBILI -> { sourcePlatform = "Bilibili"; sourceKey = "bilibili"; }
-                case VIMEO -> { sourcePlatform = "Vimeo"; sourceKey = "vimeo"; }
-                case TWITCH -> { sourcePlatform = "Twitch"; sourceKey = "twitch"; }
-                case SOUNDCLOUD -> { sourcePlatform = "SoundCloud"; sourceKey = "soundcloud"; }
-                case YOUTUBE -> { sourcePlatform = "YouTube"; sourceKey = "youtube"; }
+                case INSTAGRAM -> {
+                    sourcePlatform = "Instagram";
+                    sourceKey = "instagram";
+                }
+                case TIKTOK -> {
+                    sourcePlatform = "TikTok";
+                    sourceKey = "tiktok";
+                }
+                case TWITTER -> {
+                    sourcePlatform = "Twitter";
+                    sourceKey = "twitter";
+                }
+                case BILIBILI -> {
+                    sourcePlatform = "Bilibili";
+                    sourceKey = "bilibili";
+                }
+                case VIMEO -> {
+                    sourcePlatform = "Vimeo";
+                    sourceKey = "vimeo";
+                }
+                case TWITCH -> {
+                    sourcePlatform = "Twitch";
+                    sourceKey = "twitch";
+                }
+                case SOUNDCLOUD -> {
+                    sourcePlatform = "SoundCloud";
+                    sourceKey = "soundcloud";
+                }
+                case YOUTUBE -> {
+                    sourcePlatform = "YouTube";
+                    sourceKey = "youtube";
+                }
                 default -> {
                     if (ytMeta != null && ytMeta.webpageUrl() != null) {
                         try {
@@ -1709,11 +1733,26 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
 
         if (sourceKey == null) {
             switch (trackType) {
-                case YOUTUBE -> { sourcePlatform = "YouTube"; sourceKey = "youtube"; }
-                case SPOTIFY -> { sourcePlatform = "Spotify"; sourceKey = "spotify"; }
-                case SOUNDCLOUD -> { sourcePlatform = "SoundCloud"; sourceKey = "soundcloud"; }
-                case RADIO -> { sourcePlatform = "Radio"; sourceKey = "radio"; }
-                case LOCAL -> { sourcePlatform = "Local File"; sourceKey = "local"; }
+                case YOUTUBE -> {
+                    sourcePlatform = "YouTube";
+                    sourceKey = "youtube";
+                }
+                case SPOTIFY -> {
+                    sourcePlatform = "Spotify";
+                    sourceKey = "spotify";
+                }
+                case SOUNDCLOUD -> {
+                    sourcePlatform = "SoundCloud";
+                    sourceKey = "soundcloud";
+                }
+                case RADIO -> {
+                    sourcePlatform = "Radio";
+                    sourceKey = "radio";
+                }
+                case LOCAL -> {
+                    sourcePlatform = "Local File";
+                    sourceKey = "local";
+                }
                 default -> { }
             }
         }
