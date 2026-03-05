@@ -1,6 +1,7 @@
 package dev.cosgy.jmusicbot.framework.jdautilities.command;
 
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
@@ -29,6 +30,7 @@ public class CommandClient extends ListenerAdapter {
     private final GuildSettingsManager guildSettingsManager;
     private final CommandListener listener;
     private final String serverInvite;
+    private final OnlineStatus status;
     private final Activity activity;
     private final List<Command> commands;
     private final List<SlashCommand> slashCommands;
@@ -48,6 +50,7 @@ public class CommandClient extends ListenerAdapter {
         this.guildSettingsManager = builder.guildSettingsManager;
         this.listener = builder.listener;
         this.serverInvite = builder.serverInvite;
+        this.status = builder.status;
         this.activity = builder.activity;
         this.commands = List.copyOf(builder.commands);
         this.slashCommands = List.copyOf(builder.slashCommands);
@@ -56,6 +59,13 @@ public class CommandClient extends ListenerAdapter {
     @Override
     public void onReady(ReadyEvent event) {
         this.jda = event.getJDA();
+
+        // Apply configured default presence once the gateway is ready.
+        // This replaces temporary boot presence (e.g. "Loading...") after reconnect/restart.
+        if (status != null) {
+            event.getJDA().getPresence().setStatus(status);
+        }
+        event.getJDA().getPresence().setActivity(activity);
 
         // Register slash commands through the internal implementation.
         if (!slashCommands.isEmpty()) {
