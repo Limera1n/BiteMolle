@@ -661,56 +661,74 @@ public class MusicService {
 
     private Map<String, Object> buildExtendedTrackInfo(AudioHandler audioHandler, AudioTrack track, AudioHandler.TrackType trackType) {
         if (trackType == AudioHandler.TrackType.SPOTIFY) {
-            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotInfo = audioHandler.getSpotifyTrackInfo();
-            if (spotInfo != null) {
-                Map<String, Object> spotifyInfoMap = new HashMap<>();
-                spotifyInfoMap.put("trackId", spotInfo.trackId);
-                spotifyInfoMap.put("albumName", spotInfo.albumName);
-                spotifyInfoMap.put("albumImageUrl", spotInfo.albumImageUrl);
-                spotifyInfoMap.put("artistName", spotInfo.artistName);
-                spotifyInfoMap.put("releaseYear", spotInfo.releaseYear);
-                return spotifyInfoMap;
-            }
-            return null;
+            return buildSpotifyExtendedTrackInfo(audioHandler);
         }
 
         if (!audioHandler.isGensokyoRadioTrack(track)) {
             return null;
         }
 
+        return buildGensokyoExtendedTrackInfo();
+    }
+
+    private Map<String, Object> buildSpotifyExtendedTrackInfo(AudioHandler audioHandler) {
+        dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotInfo = audioHandler.getSpotifyTrackInfo();
+        if (spotInfo == null) {
+            return null;
+        }
+
+        Map<String, Object> spotifyInfoMap = new HashMap<>();
+        spotifyInfoMap.put("trackId", spotInfo.trackId);
+        spotifyInfoMap.put("albumName", spotInfo.albumName);
+        spotifyInfoMap.put("albumImageUrl", spotInfo.albumImageUrl);
+        spotifyInfoMap.put("artistName", spotInfo.artistName);
+        spotifyInfoMap.put("releaseYear", spotInfo.releaseYear);
+        return spotifyInfoMap;
+    }
+
+    private Map<String, Object> buildGensokyoExtendedTrackInfo() {
         try {
             dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
             if (grInfo == null || grInfo.getSonginfo() == null) {
                 return null;
             }
+
             Map<String, Object> infoMap = new HashMap<>();
-            if (grInfo.getSonginfo().getAlbum() != null && !grInfo.getSonginfo().getAlbum().isEmpty()) {
-                infoMap.put("albumName", grInfo.getSonginfo().getAlbum());
+            putIfNotBlank(infoMap, "albumName", grInfo.getSonginfo().getAlbum());
+            putIfNotBlank(infoMap, "circleName", grInfo.getSonginfo().getCircle());
+            putIfNotBlank(infoMap, "releaseYear", grInfo.getSonginfo().getYear());
+
+            if (grInfo.getMisc() != null) {
+                putIfNotBlank(infoMap, "albumImageUrl", grInfo.getMisc().getFullAlbumArtUrl());
             }
-            if (grInfo.getSonginfo().getCircle() != null && !grInfo.getSonginfo().getCircle().isEmpty()) {
-                infoMap.put("circleName", grInfo.getSonginfo().getCircle());
-            }
-            if (grInfo.getSonginfo().getYear() != null && !grInfo.getSonginfo().getYear().isEmpty()) {
-                infoMap.put("releaseYear", grInfo.getSonginfo().getYear());
-            }
-            if (grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null && !grInfo.getMisc().getFullAlbumArtUrl().isEmpty()) {
-                infoMap.put("albumImageUrl", grInfo.getMisc().getFullAlbumArtUrl());
-            }
-            if (grInfo.getSongtimes() != null) {
-                if (grInfo.getSongtimes().getDuration() != null) {
-                    infoMap.put("gensokyoDuration", grInfo.getSongtimes().getDuration() * 1000);
-                }
-                if (grInfo.getSongtimes().getPlayed() != null) {
-                    infoMap.put("gensokyoPlayed", grInfo.getSongtimes().getPlayed() * 1000);
-                }
-                if (grInfo.getSongtimes().getRemaining() != null) {
-                    infoMap.put("gensokyoRemaining", grInfo.getSongtimes().getRemaining() * 1000);
-                }
-            }
+
+            addGensokyoTimingInfo(infoMap, grInfo);
             return infoMap;
         } catch (Exception e) {
             System.out.println("Error fetching Gensokyo Radio metadata: " + e.getMessage());
             return null;
+        }
+    }
+
+    private void addGensokyoTimingInfo(Map<String, Object> infoMap, dev.cosgy.agent.objects.ResultSet grInfo) {
+        if (grInfo.getSongtimes() == null) {
+            return;
+        }
+
+        if (grInfo.getSongtimes().getDuration() != null) {
+            infoMap.put("gensokyoDuration", grInfo.getSongtimes().getDuration() * 1000);
+        }
+        if (grInfo.getSongtimes().getPlayed() != null) {
+            infoMap.put("gensokyoPlayed", grInfo.getSongtimes().getPlayed() * 1000);
+        }
+        if (grInfo.getSongtimes().getRemaining() != null) {
+            infoMap.put("gensokyoRemaining", grInfo.getSongtimes().getRemaining() * 1000);
+        }
+    }
+
+    private void putIfNotBlank(Map<String, Object> target, String key, String value) {
+        if (value != null && !value.isEmpty()) {
+            target.put(key, value);
         }
     }
 

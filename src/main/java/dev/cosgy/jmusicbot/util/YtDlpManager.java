@@ -256,31 +256,7 @@ public final class YtDlpManager {
 
         boolean isHttp = id.startsWith("http://") || id.startsWith("https://");
         if (isHttp) {
-            if (id.contains("soundcloud.com/") || id.contains("sndcdn.com/") || id.contains("on.soundcloud.com/")) {
-                return FallbackPlatform.SOUNDCLOUD;
-            }
-            if (id.contains("youtube.com/") || id.contains("youtu.be/")) {
-                return FallbackPlatform.YOUTUBE;
-            }
-            if (id.contains("instagram.com/") || id.contains("instagr.am/")) {
-                return FallbackPlatform.INSTAGRAM;
-            }
-            if (id.contains("tiktok.com/")) {
-                return FallbackPlatform.TIKTOK;
-            }
-            if (id.contains("twitter.com/") || id.contains("x.com/")) {
-                return FallbackPlatform.TWITTER;
-            }
-            if (id.contains("twitch.tv/")) {
-                return FallbackPlatform.TWITCH;
-            }
-            if (id.contains("bilibili.com/") || id.contains("b23.tv/")) {
-                return FallbackPlatform.BILIBILI;
-            }
-            if (id.contains("vimeo.com/") || id.contains("player.vimeo.com/")) {
-                return FallbackPlatform.VIMEO;
-            }
-            return FallbackPlatform.GENERIC;
+            return detectHttpPlatform(id);
         }
 
         if (id.matches("^[a-zA-Z0-9_-]{10,}$")) {
@@ -288,6 +264,43 @@ public final class YtDlpManager {
         }
 
         return FallbackPlatform.NONE;
+    }
+
+    private FallbackPlatform detectHttpPlatform(String id) {
+        if (containsAny(id, "soundcloud.com/", "sndcdn.com/", "on.soundcloud.com/")) {
+            return FallbackPlatform.SOUNDCLOUD;
+        }
+        if (containsAny(id, "youtube.com/", "youtu.be/")) {
+            return FallbackPlatform.YOUTUBE;
+        }
+        if (containsAny(id, "instagram.com/", "instagr.am/")) {
+            return FallbackPlatform.INSTAGRAM;
+        }
+        if (containsAny(id, "tiktok.com/")) {
+            return FallbackPlatform.TIKTOK;
+        }
+        if (containsAny(id, "twitter.com/", "x.com/")) {
+            return FallbackPlatform.TWITTER;
+        }
+        if (containsAny(id, "twitch.tv/")) {
+            return FallbackPlatform.TWITCH;
+        }
+        if (containsAny(id, "bilibili.com/", "b23.tv/")) {
+            return FallbackPlatform.BILIBILI;
+        }
+        if (containsAny(id, "vimeo.com/", "player.vimeo.com/")) {
+            return FallbackPlatform.VIMEO;
+        }
+        return FallbackPlatform.GENERIC;
+    }
+
+    private boolean containsAny(String value, String... probes) {
+        for (String probe : probes) {
+            if (value.contains(probe)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Path getCacheDir() {
