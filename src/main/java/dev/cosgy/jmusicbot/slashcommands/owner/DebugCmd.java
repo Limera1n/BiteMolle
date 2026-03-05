@@ -48,7 +48,7 @@ public class DebugCmd extends OwnerCommand {
             event.reply("Debug Information: ```\n" + content + "\n```");
     }
 
-    private String buildDebugInfo(String selfId, int guildCount, int userCount, boolean includePiiDisclaimer) {
+    private String buildDebugInfo(String selfId, long guildCount, long userCount, boolean includePiiDisclaimer) {
         StringBuilder sb = new StringBuilder();
         sb.append("System Properties:");
         for (String key : PROPERTIES)

@@ -2,10 +2,7 @@ package dev.cosgy.jmusicbot.playlist;
 
 import com.jagrosh.jmusicbot.BotConfig;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
-import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
-import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
-import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 
 import java.io.File;
@@ -107,13 +104,11 @@ public class MylistLoader {
         try {
             if (folderExists()) {
                 if (folderUserExists(userId)) {
-                    boolean[] shuffle = {false};
-                    List<String> list = new ArrayList<>();
-                    Files.readAllLines(Paths.get(config.getMylistfolder() + File.separator + userId + File.separator + name + ".txt"))
-                            .forEach((String str) -> Trim(shuffle, list, str));
-                    if (shuffle[0])
+                    PlaylistSourceReader.Result source = PlaylistSourceReader.read(Paths.get(config.getMylistfolder() + File.separator + userId + File.separator + name + ".txt"));
+                    List<String> list = source.getItems();
+                    if (source.isShuffle())
                         shuffle(list);
-                    return new Playlist(name, list, shuffle[0]);
+                    return new Playlist(name, list, source.isShuffle());
                 } else {
                     createUserFolder(userId);
                     return null;
@@ -170,51 +165,34 @@ public class MylistLoader {
             if (loaded)
                 return;
             loaded = true;
-            for (int i = 0; i < items.size(); i++) {
-                boolean last = i + 1 == items.size();
-                int index = i;
-                manager.loadItemOrdered(name, items.get(i), new AudioLoadResultHandler() {
-                    private void done() {
-                        if (last) {
-                            if (shuffle)
-                                shuffleTracks();
-                            if (callback != null)
-                                callback.run();
+            PlaylistAsyncLoader.loadTracks(
+                    manager,
+                    name,
+                    items,
+                    shuffle,
+                    config,
+                    tracks,
+                    errors,
+                    consumer,
+                    callback,
+                    this::shuffleTracks,
+                    new PlaylistAsyncLoader.ErrorFactory<>() {
+                        @Override
+                        public PlaylistLoadError tooLong(int index, String item) {
+                            return new PlaylistLoadError(index, item, "This track exceeds the allowed maximum length.");
+                        }
+
+                        @Override
+                        public PlaylistLoadError noMatches(int index, String item) {
+                            return new PlaylistLoadError(index, item, "No matching item was found.");
+                        }
+
+                        @Override
+                        public PlaylistLoadError loadFailed(int index, String item, com.sedmelluq.discord.lavaplayer.tools.FriendlyException exception) {
+                            return new PlaylistLoadError(index, item, "Failed to load the track: " + exception.getLocalizedMessage());
                         }
                     }
-
-                    @Override
-                    public void trackLoaded(AudioTrack at) {
-                        if (!PlaylistLoadSupport.addTrackIfAllowed(at, config, tracks, consumer))
-                            errors.add(new PlaylistLoadError(index, items.get(index), "This track exceeds the allowed maximum length."));
-                        done();
-                    }
-
-                    @Override
-                    public void playlistLoaded(AudioPlaylist ap) {
-                        if (ap.isSearchResult()) {
-                            trackLoaded(ap.getTracks().get(0));
-                        } else if (ap.getSelectedTrack() != null) {
-                            trackLoaded(ap.getSelectedTrack());
-                        } else {
-                            PlaylistLoadSupport.appendPlaylistTracks(ap, shuffle, config, tracks, consumer);
-                        }
-                        done();
-                    }
-
-                    @Override
-                    public void noMatches() {
-                        errors.add(new PlaylistLoadError(index, items.get(index), "No matching item was found."));
-                        done();
-                    }
-
-                    @Override
-                    public void loadFailed(FriendlyException fe) {
-                        errors.add(new PlaylistLoadError(index, items.get(index), "Failed to load the track: " + fe.getLocalizedMessage()));
-                        done();
-                    }
-                });
-            }
+            );
         }
 
         public void shuffleTracks() {
