@@ -1,11 +1,11 @@
 <h3 align="center">
 
-[![Downloads](https://img.shields.io/github/downloads/Limera1n/BiteMolle/total.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
-[![Stars](https://img.shields.io/github/stars/Limera1n/BiteMolle.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/stargazers)
-[![Release](https://img.shields.io/github/release/Limera1n/BiteMolle.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
-[![License](https://img.shields.io/github/license/Limera1n/BiteMolle.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/Limera1n/BiteMolle/total.svg)](https://github.com/Limera1n/BiteMolle/releases/latest)
+[![Stars](https://img.shields.io/github/stars/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/stargazers)
+[![Release](https://img.shields.io/github/release/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/releases/latest)
+[![License](https://img.shields.io/github/license/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/blob/main/LICENSE)
 [![CodeFactor](https://www.codefactor.io/repository/github/limera1n/bitemolle/badge/main)](https://www.codefactor.io/repository/github/limera1n/bitemolle/overview/main)
-[![Build and Test](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
+[![Build and Test](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml/badge.svg)](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml)
 </h3>
 
 # JMusicBot

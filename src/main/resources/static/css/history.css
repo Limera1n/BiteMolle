@@ -99,6 +99,7 @@
     display: inline-flex;
     align-items: stretch;
     height: 42px;
+    overflow: visible;
 }
 
 .requester-filter-select {
@@ -767,7 +768,7 @@
 }
 
 .history-sentinel {
-    padding: 12px 0 20px 0;
+    padding: 12px 0 20px;
     text-align: center;
     color: var(--muted-text);
     font-size: 13px;
@@ -1467,6 +1468,3 @@
 }
 
 /* Ensure container allows overflow */
-.requester-filter-container {
-    overflow: visible !important; 
-} 

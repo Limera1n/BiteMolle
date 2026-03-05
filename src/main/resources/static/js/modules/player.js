@@ -54,30 +54,40 @@ const Player = (function() {
         return url;
     }
 
+    function resolveSpotifyTrackUrl(track) {
+        if (track.uri && track.uri.includes('spotify')) {
+            return track.uri;
+        }
+        if (track.spotifyInfo && track.spotifyInfo.trackId) {
+            return 'https://open.spotify.com/track/' + track.spotifyInfo.trackId;
+        }
+        return '';
+    }
+
+    function resolveRadioAuthorUrl(track) {
+        if (track.radioCountry && track.radioAlias) {
+            return `https://onlineradiobox.com/${track.radioCountry}/${track.radioAlias}/`;
+        }
+        return track.radioStationUrl || '';
+    }
+
     function resolveQueueTrackLinks(track) {
-        let trackSourceUrl = '';
+        let trackSourceUrl = track.uri || '';
         let queueAuthorSourceUrl = '';
 
-        if (track.sourceType === 'YouTube' && track.uri) {
-            trackSourceUrl = track.uri;
-        } else if (track.sourceType === 'Spotify') {
-            if (track.uri && track.uri.includes('spotify')) {
-                trackSourceUrl = track.uri;
-            } else if (track.spotifyInfo && track.spotifyInfo.trackId) {
-                trackSourceUrl = 'https://open.spotify.com/track/' + track.spotifyInfo.trackId;
-            }
-        } else if (track.sourceType === 'Radio') {
-            if (track.radioCountry && track.radioAlias) {
-                queueAuthorSourceUrl = `https://onlineradiobox.com/${track.radioCountry}/${track.radioAlias}/`;
-            } else if (track.radioStationUrl) {
-                queueAuthorSourceUrl = track.radioStationUrl;
-            }
-        } else if (track.sourceType === 'Gensokyo Radio') {
-            trackSourceUrl = 'https://gensokyoradio.net/playing/';
-        } else if (track.sourceType === 'SoundCloud' && track.uri) {
-            trackSourceUrl = track.uri;
-        } else if (track.uri) {
-            trackSourceUrl = track.uri;
+        switch (track.sourceType) {
+            case 'Spotify':
+                trackSourceUrl = resolveSpotifyTrackUrl(track);
+                break;
+            case 'Radio':
+                trackSourceUrl = '';
+                queueAuthorSourceUrl = resolveRadioAuthorUrl(track);
+                break;
+            case 'Gensokyo Radio':
+                trackSourceUrl = 'https://gensokyoradio.net/playing/';
+                break;
+            default:
+                break;
         }
 
         if (track.sourceType === 'Stream' && track.uri && track.uri.includes('stream.gensokyoradio.net')) {
@@ -442,6 +452,10 @@ const Player = (function() {
     
     // Fetch current status from the API
     async function fetchStatus() {
+        return fetchStatusInternal();
+    }
+
+    async function fetchStatusInternal() {
         try {
             // Skip work when the player view is not mounted (SPA navigation)
             if (!isPlayerViewActive()) {

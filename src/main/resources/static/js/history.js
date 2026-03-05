@@ -1458,105 +1458,130 @@ const HistoryModule = (() => {
         }
     };
 
-    const resolveHistoryRecordPresentation = (record) => {
-        const presentation = {
-            title: record.title || 'Unknown Title',
-            thumbnailSrc: 'https://cdn.discordapp.com/embed/avatars/0.png',
-            sourceType: 'Unknown',
-            sourceIcon: '',
-            hasStationLogo: false,
-            stationLogoUrl: '',
-            additionalMetadata: []
-        };
+    const createDefaultPresentation = (record) => ({
+        title: record.title || 'Unknown Title',
+        thumbnailSrc: 'https://cdn.discordapp.com/embed/avatars/0.png',
+        sourceType: 'Unknown',
+        sourceIcon: '',
+        hasStationLogo: false,
+        stationLogoUrl: '',
+        additionalMetadata: []
+    });
 
-        if (record.gensokyoTitle) {
-            presentation.thumbnailSrc = record.gensokyoAlbumArtUrl || 'https://stream.gensokyoradio.net/images/logo.png';
-            presentation.sourceType = 'Gensokyo Radio';
-            presentation.sourceIcon = '<i class="fas fa-music source-icon-gensokyoradio"></i>';
-            presentation.hasStationLogo = true;
-            presentation.stationLogoUrl = 'https://stream.gensokyoradio.net/images/logo.png';
-            if (record.gensokyoAlbum) presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.gensokyoAlbum });
-            if (record.gensokyoCircle) presentation.additionalMetadata.push({ icon: 'fas fa-users', text: record.gensokyoCircle });
-            if (record.gensokyoYear) presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.gensokyoYear });
-            return presentation;
+    const tryResolveGensokyoPresentation = (record, presentation) => {
+        if (!record.gensokyoTitle) return false;
+        presentation.thumbnailSrc = record.gensokyoAlbumArtUrl || 'https://stream.gensokyoradio.net/images/logo.png';
+        presentation.sourceType = 'Gensokyo Radio';
+        presentation.sourceIcon = '<i class="fas fa-music source-icon-gensokyoradio"></i>';
+        presentation.hasStationLogo = true;
+        presentation.stationLogoUrl = 'https://stream.gensokyoradio.net/images/logo.png';
+        if (record.gensokyoAlbum) presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.gensokyoAlbum });
+        if (record.gensokyoCircle) presentation.additionalMetadata.push({ icon: 'fas fa-users', text: record.gensokyoCircle });
+        if (record.gensokyoYear) presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.gensokyoYear });
+        return true;
+    };
+
+    const tryResolveYtDlpPresentation = (record, presentation) => {
+        if (!(record.ytDlpData?.sourceType || record.ytDlpSourceType)) return false;
+        presentation.thumbnailSrc = record.ytDlpData?.thumbnailUrl || record.ytDlpThumbnailUrl || presentation.thumbnailSrc;
+        presentation.sourceType = record.ytDlpData?.sourceType || record.ytDlpSourceType || 'Unknown';
+        const customIconUrl = record.ytDlpData?.sourceIconUrl || record.ytDlpSourceIconUrl;
+        presentation.sourceIcon = customIconUrl
+            ? `<img src="${customIconUrl}" alt="${presentation.sourceType}" style="width: 1em; height: 1em; vertical-align: -0.125em;">`
+            : getSourceIconFromType(presentation.sourceType);
+        return true;
+    };
+
+    const tryResolveSpotifyPresentation = (record, presentation) => {
+        if (!record.spotifyAlbumImageUrl) return false;
+        presentation.thumbnailSrc = record.spotifyAlbumImageUrl;
+        presentation.sourceType = 'Spotify';
+        presentation.sourceIcon = '<i class="fab fa-spotify source-icon-spotify"></i>';
+        if (record.spotifyAlbumName) presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.spotifyAlbumName });
+        if (record.spotifyReleaseYear) presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.spotifyReleaseYear });
+        return true;
+    };
+
+    const tryResolveYoutubePresentation = (record, presentation) => {
+        if (!record.youtubeVideoId) return false;
+        presentation.thumbnailSrc = `https://img.youtube.com/vi/${record.youtubeVideoId}/mqdefault.jpg`;
+        presentation.sourceType = 'YouTube';
+        presentation.sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
+        return true;
+    };
+
+    const tryResolveRadioPresentation = (record, presentation) => {
+        if (!record.radioLogoUrl) return false;
+        presentation.thumbnailSrc = record.radioSongImageUrl || record.radioLogoUrl;
+        if (record.title) {
+            const pipeIndex = record.title.lastIndexOf(' | ');
+            presentation.title = pipeIndex > 0 ? record.title.substring(0, pipeIndex).trim() : record.title;
         }
+        presentation.sourceType = 'Radio';
+        presentation.sourceIcon = '<i class="fas fa-broadcast-tower source-icon-radio"></i>';
+        presentation.hasStationLogo = true;
+        presentation.stationLogoUrl = record.radioLogoUrl;
+        return true;
+    };
 
-        if (record.ytDlpData?.sourceType || record.ytDlpSourceType) {
-            presentation.thumbnailSrc = record.ytDlpData?.thumbnailUrl || record.ytDlpThumbnailUrl || presentation.thumbnailSrc;
-            presentation.sourceType = record.ytDlpData?.sourceType || record.ytDlpSourceType || 'Unknown';
-            const customIconUrl = record.ytDlpData?.sourceIconUrl || record.ytDlpSourceIconUrl;
-            presentation.sourceIcon = customIconUrl
-                ? `<img src="${customIconUrl}" alt="${presentation.sourceType}" style="width: 1em; height: 1em; vertical-align: -0.125em;">`
-                : getSourceIconFromType(presentation.sourceType);
-            return presentation;
-        }
-
-        if (record.spotifyAlbumImageUrl) {
-            presentation.thumbnailSrc = record.spotifyAlbumImageUrl;
-            presentation.sourceType = 'Spotify';
-            presentation.sourceIcon = '<i class="fab fa-spotify source-icon-spotify"></i>';
-            if (record.spotifyAlbumName) presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.spotifyAlbumName });
-            if (record.spotifyReleaseYear) presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.spotifyReleaseYear });
-            return presentation;
-        }
-
-        if (record.youtubeVideoId) {
-            presentation.thumbnailSrc = `https://img.youtube.com/vi/${record.youtubeVideoId}/mqdefault.jpg`;
-            presentation.sourceType = 'YouTube';
-            presentation.sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
-            return presentation;
-        }
-
-        if (record.radioLogoUrl) {
-            presentation.thumbnailSrc = record.radioSongImageUrl || record.radioLogoUrl;
-            if (record.title) {
-                const pipeIndex = record.title.lastIndexOf(' | ');
-                presentation.title = pipeIndex > 0 ? record.title.substring(0, pipeIndex).trim() : record.title;
-            }
-            presentation.sourceType = 'Radio';
-            presentation.sourceIcon = '<i class="fas fa-broadcast-tower source-icon-radio"></i>';
-            presentation.hasStationLogo = true;
-            presentation.stationLogoUrl = record.radioLogoUrl;
-            return presentation;
-        }
-
-        if (record.url && record.url.includes('tiktok.com')) {
+    const tryResolveUrlBasedPresentation = (record, presentation) => {
+        if (!record.url) return false;
+        if (record.url.includes('tiktok.com')) {
             presentation.sourceType = 'TikTok';
             presentation.sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
             if (record.thumbnailUrl) presentation.thumbnailSrc = record.thumbnailUrl;
-            return presentation;
+            return true;
         }
-
-        if (record.url && record.url.includes('instagram.com')) {
+        if (record.url.includes('instagram.com')) {
             presentation.sourceType = 'Instagram';
             presentation.sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
             if (record.thumbnailUrl) presentation.thumbnailSrc = record.thumbnailUrl;
-            return presentation;
+            return true;
         }
-
-        if (record.url && (record.url.includes('twitter.com') || record.url.includes('x.com'))) {
+        if (record.url.includes('twitter.com') || record.url.includes('x.com')) {
             presentation.sourceType = 'Twitter';
             presentation.sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
             if (record.thumbnailUrl) presentation.thumbnailSrc = record.thumbnailUrl;
-            return presentation;
+            return true;
         }
-
-        if ((record.url && record.url.includes('soundcloud.com')) || record.soundCloudArtworkUrl) {
+        if (record.url.includes('soundcloud.com') || record.soundCloudArtworkUrl) {
             presentation.thumbnailSrc = record.soundCloudArtworkUrl || 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5b56e1e432.png';
             presentation.sourceType = 'SoundCloud';
             presentation.sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
-            return presentation;
+            return true;
         }
+        return false;
+    };
 
-        if (record.localAlbum || record.localGenre || record.localYear || record.localArtworkHash) {
-            presentation.sourceType = 'Local File';
-            presentation.sourceIcon = '<i class="fas fa-file-audio source-icon-local"></i>';
-            presentation.thumbnailSrc = record.localArtworkHash
-                ? `/${record.localArtworkHash}`
-                : 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png';
-            if (record.localAlbum && record.localAlbum !== 'Unknown Album') presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.localAlbum });
-            if (record.localGenre && record.localGenre !== 'Unknown Genre') presentation.additionalMetadata.push({ icon: 'fas fa-tag', text: record.localGenre });
-            if (record.localYear && record.localYear !== '') presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.localYear });
+    const tryResolveLocalPresentation = (record, presentation) => {
+        if (!(record.localAlbum || record.localGenre || record.localYear || record.localArtworkHash)) return false;
+        presentation.sourceType = 'Local File';
+        presentation.sourceIcon = '<i class="fas fa-file-audio source-icon-local"></i>';
+        presentation.thumbnailSrc = record.localArtworkHash
+            ? `/${record.localArtworkHash}`
+            : 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png';
+        if (record.localAlbum && record.localAlbum !== 'Unknown Album') presentation.additionalMetadata.push({ icon: 'fas fa-compact-disc', text: record.localAlbum });
+        if (record.localGenre && record.localGenre !== 'Unknown Genre') presentation.additionalMetadata.push({ icon: 'fas fa-tag', text: record.localGenre });
+        if (record.localYear && record.localYear !== '') presentation.additionalMetadata.push({ icon: 'fas fa-calendar-alt', text: record.localYear });
+        return true;
+    };
+
+    const resolveHistoryRecordPresentation = (record) => {
+        const presentation = createDefaultPresentation(record);
+        const resolvers = [
+            tryResolveGensokyoPresentation,
+            tryResolveYtDlpPresentation,
+            tryResolveSpotifyPresentation,
+            tryResolveYoutubePresentation,
+            tryResolveRadioPresentation,
+            tryResolveUrlBasedPresentation,
+            tryResolveLocalPresentation
+        ];
+
+        for (const resolver of resolvers) {
+            if (resolver(record, presentation)) {
+                return presentation;
+            }
         }
 
         return presentation;

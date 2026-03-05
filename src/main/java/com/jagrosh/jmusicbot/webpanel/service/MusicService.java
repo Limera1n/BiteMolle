@@ -196,6 +196,217 @@ public class MusicService {
                 platformFromYt
         );
     }
+
+    private static final class TrackPresentationData {
+        private String sourceType = "Unknown";
+        private String source = "Unknown";
+        private String thumbnailUrl = "";
+        private String sourceIconUrl;
+        private boolean platformFromYt;
+        private boolean isStreamFlag;
+        private String localAlbum;
+        private String localGenre;
+        private String localYear;
+        private String radioLogoUrl;
+        private String radioSongImageUrl;
+    }
+
+    private static boolean isEmpty(String value) {
+        return value == null || value.isEmpty();
+    }
+
+    private String extractYoutubeVideoId(String uri) {
+        if (uri == null) {
+            return null;
+        }
+        if (uri.contains("youtu.be/")) {
+            String videoId = uri.substring(uri.lastIndexOf('/') + 1);
+            if (videoId.contains("?")) {
+                videoId = videoId.substring(0, videoId.indexOf('?'));
+            }
+            return videoId;
+        }
+        if (uri.contains("watch?v=")) {
+            String videoId = uri.substring(uri.indexOf("watch?v=") + 8);
+            if (videoId.contains("&")) {
+                videoId = videoId.substring(0, videoId.indexOf('&'));
+            }
+            return videoId;
+        }
+        return null;
+    }
+
+    private TrackPresentationData resolveTrackPresentation(AudioHandler audioHandler, AudioTrack track, AudioTrackInfo info, RequestMetadata rm) {
+        TrackPresentationData data = new TrackPresentationData();
+        data.isStreamFlag = track.getInfo().isStream;
+
+        YtDlpSourceResolution ytResolution = resolveYtDlpSource(track, data.sourceType, data.source, data.thumbnailUrl);
+        data.sourceType = ytResolution.sourceType;
+        data.source = ytResolution.source;
+        data.sourceIconUrl = ytResolution.sourceIconUrl;
+        data.thumbnailUrl = ytResolution.thumbnailUrl;
+        data.platformFromYt = ytResolution.platformFromYt;
+        if (data.platformFromYt) {
+            data.isStreamFlag = false;
+        }
+
+        AudioHandler.TrackType trackType = audioHandler.getTrackType(track);
+        switch (trackType) {
+            case YOUTUBE -> {
+                if (!data.platformFromYt) {
+                    data.sourceType = "YouTube";
+                    data.source = "YouTube";
+                }
+                if (isEmpty(data.thumbnailUrl)) {
+                    String videoId = extractYoutubeVideoId(info.uri);
+                    if (videoId != null) {
+                        data.thumbnailUrl = "https://img.youtube.com/vi/" + videoId + "/mqdefault.jpg";
+                    }
+                }
+            }
+            case SPOTIFY -> {
+                if (!data.platformFromYt) {
+                    data.sourceType = "Spotify";
+                    data.source = "Spotify";
+                }
+                String spotifyTrackId = rm != null && rm.hasSpotifyData() ? rm.getSpotifyTrackId() : null;
+                if (spotifyTrackId != null) {
+                    String albumUrl = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumImageUrls.get(spotifyTrackId);
+                    data.thumbnailUrl = !isEmpty(albumUrl)
+                            ? albumUrl
+                            : "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                } else {
+                    dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = audioHandler.getSpotifyTrackInfo();
+                    data.thumbnailUrl = (spotifyInfo != null && !isEmpty(spotifyInfo.albumImageUrl))
+                            ? spotifyInfo.albumImageUrl
+                            : "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                }
+            }
+            case RADIO -> {
+                data.isStreamFlag = true;
+                data.sourceType = "Radio";
+                String stationName = audioHandler.getRadioStationName(track);
+                String logoUrl = audioHandler.getRadioLogoUrl(track);
+                dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.TrackInfo radioInfo = audioHandler.getRadioTrackInfo(track);
+                String songImageUrl = (radioInfo != null && !isEmpty(radioInfo.imageUrl)) ? radioInfo.imageUrl : null;
+
+                if (!isEmpty(songImageUrl)) {
+                    data.thumbnailUrl = songImageUrl;
+                } else if (!isEmpty(logoUrl)) {
+                    data.thumbnailUrl = logoUrl;
+                } else {
+                    data.thumbnailUrl = "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png";
+                }
+
+                data.source = stationName != null ? stationName : "Radio Stream";
+                data.radioLogoUrl = logoUrl;
+                data.radioSongImageUrl = songImageUrl;
+
+                if (audioHandler.isGensokyoRadioTrack(track)) {
+                    data.sourceType = "Gensokyo Radio";
+                    data.source = "Gensokyo Radio";
+                    data.thumbnailUrl = "https://stream.gensokyoradio.net/images/logo.png";
+                    try {
+                        dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                        if (grInfo != null && grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null && !grInfo.getMisc().getFullAlbumArtUrl().isEmpty()) {
+                            data.thumbnailUrl = grInfo.getMisc().getFullAlbumArtUrl();
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+            case SOUNDCLOUD -> {
+                if (!data.platformFromYt) {
+                    data.sourceType = "SoundCloud";
+                    data.source = "SoundCloud";
+                }
+                data.thumbnailUrl = !isEmpty(info.artworkUrl)
+                        ? info.artworkUrl
+                        : "https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png";
+            }
+            case LOCAL -> {
+                if (!data.platformFromYt) {
+                    data.sourceType = "Local File";
+                    data.source = "Local File";
+                }
+
+                if (rm != null && rm.hasLocalFileData()) {
+                    data.localAlbum = rm.getLocalFileAlbum();
+                    data.localGenre = rm.getLocalFileGenre();
+                    data.localYear = rm.getLocalFileYear();
+                    if (!isEmpty(rm.getLocalFileArtworkHash())) {
+                        data.thumbnailUrl = "/" + rm.getLocalFileArtworkHash();
+                    }
+                } else {
+                    dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo cachedInfo = bot.getLocalMetadataCache().get(track.getInfo().identifier);
+                    if (cachedInfo != null) {
+                        data.localAlbum = cachedInfo.getAlbum();
+                        data.localGenre = cachedInfo.getGenre();
+                        data.localYear = cachedInfo.getYear();
+                        if (cachedInfo.hasArtwork() && cachedInfo.getArtworkPath() != null) {
+                            data.thumbnailUrl = "/" + cachedInfo.getArtworkPath();
+                        }
+                    }
+                }
+
+                if (isEmpty(data.thumbnailUrl)) {
+                    data.thumbnailUrl = "/images/default_local.png";
+                }
+            }
+            default -> {
+                if (!data.platformFromYt) {
+                    FallbackPlatform platform = PlayerManager.getYtDlpPlatform(track);
+                    if (platform != null && platform != FallbackPlatform.NONE) {
+                        if ("Unknown".equals(data.sourceType)) {
+                            data.sourceType = platform.name().charAt(0) + platform.name().substring(1).toLowerCase();
+                            data.source = data.sourceType;
+                        }
+                        if (!isEmpty(info.artworkUrl)) {
+                            data.thumbnailUrl = info.artworkUrl;
+                        }
+                    } else if (track.getInfo().isStream) {
+                        data.sourceType = "Stream";
+                        data.source = "Web Stream";
+                        data.thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
+                    }
+                }
+
+                if ("Unknown".equals(data.sourceType) || "Stream".equals(data.sourceType)) {
+                    IcyMetadataHandler.StreamMetadata metadata = bot.getIcyMetadataHandler().getMetadata(selectedGuildId);
+                    if (metadata != null && !metadata.hasFailed()) {
+                        data.sourceType = "Stream";
+                        data.source = metadata.getStationName() != null ? metadata.getStationName() : "Web Stream";
+                        data.isStreamFlag = true;
+
+                        if (!isEmpty(metadata.getStationLogo())) {
+                            data.thumbnailUrl = metadata.getStationLogo();
+                        } else if (!isEmpty(metadata.getAlbumArt())) {
+                            data.thumbnailUrl = metadata.getAlbumArt();
+                        } else {
+                            data.thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
+                        }
+                    } else if (track.getInfo().isStream) {
+                        data.sourceType = "Stream";
+                        data.source = "Web Stream";
+                        data.thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
+                        data.isStreamFlag = true;
+                    } else if (track.getSourceManager() != null) {
+                        String srcType = track.getSourceManager().getSourceName();
+                        if ("http".equalsIgnoreCase(srcType)) {
+                            data.sourceType = "Stream";
+                            data.source = "Web Stream";
+                        } else {
+                            data.sourceType = srcType.substring(0, 1).toUpperCase() + srcType.substring(1).toLowerCase();
+                            data.source = data.sourceType;
+                        }
+                        data.thumbnailUrl = audioHandler.getSourceIconUrl(data.sourceType.toLowerCase());
+                    }
+                }
+            }
+        }
+
+        return data;
+    }
     
     /**
      * Gets a list of all guilds that the bot is connected to
@@ -330,6 +541,10 @@ public class MusicService {
      * Gets the current music status from the selected guild
      */
     public MusicStatus getCurrentStatus() {
+        return getCurrentStatusInternal();
+    }
+
+    private MusicStatus getCurrentStatusInternal() {
         Optional<AudioHandler> handler = getAudioHandler();
         
         // Check if the bot is in a voice channel in the selected guild
@@ -358,255 +573,18 @@ public class MusicService {
             }
             RequestMetadata rm = getRequestMetadata(track);
             
-            // Get source type and thumbnail
-            String sourceType = "Unknown";
-            String source = "Unknown";
-            String thumbnailUrl = "";
-            String sourceIconUrl = null;
-
-            boolean platformFromYt = false;
-            boolean isStreamFlag = track.getInfo().isStream;
-
-            YtDlpSourceResolution ytResolution = resolveYtDlpSource(track, sourceType, source, thumbnailUrl);
-            sourceType = ytResolution.sourceType;
-            source = ytResolution.source;
-            sourceIconUrl = ytResolution.sourceIconUrl;
-            thumbnailUrl = ytResolution.thumbnailUrl;
-            platformFromYt = ytResolution.platformFromYt;
-            if (platformFromYt) {
-                isStreamFlag = false; // yt-dlp VODs should not be marked live
-            }
-
-            // Variables for local file metadata
-            String localAlbum = null;
-            String localGenre = null;
-            String localYear = null;
-            
-            // Determine track type using AudioHandler methods
             AudioHandler.TrackType trackType = audioHandler.getTrackType(track);
-            
-            // Set values based on track type
-            switch (trackType) {
-                case YOUTUBE:
-                    if (!platformFromYt) {
-                        sourceType = "YouTube";
-                        source = "YouTube";
-                    }
-                    
-                    // Extract video ID for thumbnail only if not already set by yt-dlp
-                    if (thumbnailUrl.isEmpty()) {
-                        String videoId = null;
-                        if (info.uri.contains("youtu.be/")) {
-                            videoId = info.uri.substring(info.uri.lastIndexOf("/") + 1);
-                            if (videoId.contains("?")) {
-                                videoId = videoId.substring(0, videoId.indexOf("?"));
-                            }
-                        } else if (info.uri.contains("watch?v=")) {
-                            videoId = info.uri.substring(info.uri.indexOf("watch?v=") + 8);
-                            if (videoId.contains("&")) {
-                                videoId = videoId.substring(0, videoId.indexOf("&"));
-                            }
-                        }
-                        
-                        if (videoId != null) {
-                            thumbnailUrl = "https://img.youtube.com/vi/" + videoId + "/mqdefault.jpg";
-                        }
-                    }
-                    break;
-                    
-                case SPOTIFY:
-                    if (!platformFromYt) {
-                        sourceType = "Spotify";
-                        source = "Spotify";
-                    }
-                    
-                    // Get Spotify track ID from RequestMetadata
-                    String spotifyTrackId = null;
-                    RequestMetadata spotifyRm = getRequestMetadata(track);
-                    if (spotifyRm != null && spotifyRm.hasSpotifyData()) {
-                        spotifyTrackId = spotifyRm.getSpotifyTrackId();
-                        
-                        // If we have a Spotify track ID, try to get the album image
-                        if (spotifyTrackId != null) {
-                            // Check if we have album art information stored for this track ID
-                            String albumUrl = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumImageUrls.get(spotifyTrackId);
-                            if (albumUrl != null && !albumUrl.isEmpty()) {
-                                thumbnailUrl = albumUrl;
-                            } else {
-                                // Fallback to default Spotify logo
-                                thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                            }
-                        } else {
-                            // Fallback to default Spotify logo
-                            thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                        }
-                    } else {
-                        // Try to get current track's Spotify info if this is the playing track
-                        dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = 
-                            audioHandler.getSpotifyTrackInfo();
-                        if (spotifyInfo != null && spotifyInfo.albumImageUrl != null && !spotifyInfo.albumImageUrl.isEmpty()) {
-                            thumbnailUrl = spotifyInfo.albumImageUrl;
-                        } else {
-                            // Fallback to default Spotify logo
-                            thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                        }
-                    }
-                    break;
-                    
-                case RADIO:
-                    isStreamFlag = true;
-                    sourceType = "Radio";
-                    
-                    // Get radio info from AudioHandler
-                    String stationName = audioHandler.getRadioStationName(track);
-                    String logoUrl = audioHandler.getRadioLogoUrl(track);
-                    String songImageUrl = null;
-                    
-                    // Try to get current song image for radio
-                    dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.TrackInfo radioInfo = 
-                        audioHandler.getRadioTrackInfo(track);
-                    if (radioInfo != null && radioInfo.imageUrl != null && !radioInfo.imageUrl.isEmpty()) {
-                        songImageUrl = radioInfo.imageUrl;
-                        thumbnailUrl = songImageUrl; // Use song image as main thumbnail
-                    } else if (logoUrl != null && !logoUrl.isEmpty()) {
-                        // Fallback to station logo if no song image
-                        thumbnailUrl = logoUrl;
-                    } else {
-                        thumbnailUrl = "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png";
-                    }
-                    
-                    source = stationName != null ? stationName : "Radio Stream";
-                    
-                    // Save radio info for return value
-                    radioLogoUrl = logoUrl;
-                    radioSongImageUrl = songImageUrl;
-                    
-                    // Special case for Gensokyo Radio
-                    if (audioHandler.isGensokyoRadioTrack(track)) {
-                        sourceType = "Gensokyo Radio";
-                        source = "Gensokyo Radio";
-                        thumbnailUrl = "https://stream.gensokyoradio.net/images/logo.png";
-                        
-                        // Try to get album art from Gensokyo Agent
-                        try {
-                            dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                            if (grInfo != null) {
-                                // Get album art if available
-                                if (grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null) {
-                                    String albumArtUrl = grInfo.getMisc().getFullAlbumArtUrl();
-                                    if (!albumArtUrl.isEmpty()) {
-                                        thumbnailUrl = albumArtUrl;
-                                    }
-                                }
-                            }
-                        } catch (Exception e) {
-                            // Fall back to logo if there's an error
-                            System.out.println("Error fetching Gensokyo Radio album art: " + e.getMessage());
-                        }
-                    }
-                    break;
-                    
-                case SOUNDCLOUD:
-                    if (!platformFromYt) {
-                        sourceType = "SoundCloud";
-                        source = "SoundCloud";
-                    }
-                    
-                    // Use the artwork URL if available
-                    if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
-                        thumbnailUrl = track.getInfo().artworkUrl;
-                    } else {
-                        thumbnailUrl = "https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png";
-                    }
-                    break;
-                    
-                case LOCAL:
-                    if (!platformFromYt) {
-                        sourceType = "Local File";
-                        source = "Local File";
-                    }
-                    
-                    // Get local metadata from RequestMetadata or Bot's cache
-                    if (rm != null && rm.hasLocalFileData()) {
-                        localAlbum = rm.getLocalFileAlbum();
-                        localGenre = rm.getLocalFileGenre();
-                        localYear = rm.getLocalFileYear();
-                        if (rm.getLocalFileArtworkHash() != null && !rm.getLocalFileArtworkHash().isEmpty()) {
-                            thumbnailUrl = "/" + rm.getLocalFileArtworkHash(); // Prepend /
-                        }
-                    } else {
-                        // Fallback to bot's cache if RM is not populated (should be less common now)
-                        dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo cachedInfo = 
-                            bot.getLocalMetadataCache().get(track.getInfo().identifier);
-                        if (cachedInfo != null) {
-                            localAlbum = cachedInfo.getAlbum();
-                            localGenre = cachedInfo.getGenre();
-                            localYear = cachedInfo.getYear();
-                            if (cachedInfo.hasArtwork() && cachedInfo.getArtworkPath() != null) {
-                                thumbnailUrl = "/" + cachedInfo.getArtworkPath(); // Prepend /
-                            }
-                        }
-                    }
-                    
-                    // Default thumbnail if still none
-                    if (thumbnailUrl == null || thumbnailUrl.isEmpty()) {
-                        thumbnailUrl = "/images/default_local.png"; // Placeholder for default local
-                    }
-                    break;
-                    
-                default: // OTHER or unknown types
-                    FallbackPlatform platform = PlayerManager.getYtDlpPlatform(track);
-                    if (platform != null && platform != FallbackPlatform.NONE) {
-                        if (sourceType.equals("Unknown")) { // Don't overwrite if already set by generic logic above
-                            sourceType = platform.name().charAt(0) + platform.name().substring(1).toLowerCase();
-                            source = sourceType;
-                        }
-                        if (info.artworkUrl != null && !info.artworkUrl.isEmpty()) {
-                            thumbnailUrl = info.artworkUrl;
-                        }
-                    } else if (track.getInfo().isStream) { // Check if it's a stream with ICY metadata but NOT if it's ytdlp
-                        sourceType = "Stream";
-                        source = "Web Stream";
-                        thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
-                    }
-                    // Check if it's a stream with ICY metadata
-                    if (sourceType.equals("Unknown") || sourceType.equals("Stream")) {
-                        IcyMetadataHandler.StreamMetadata metadata = bot.getIcyMetadataHandler().getMetadata(selectedGuildId);
-                        if (metadata != null && !metadata.hasFailed()) {
-                            sourceType = "Stream";
-                            source = metadata.getStationName() != null ? metadata.getStationName() : "Web Stream";
-                            isStreamFlag = true;
-                            
-                            if (metadata.getStationLogo() != null && !metadata.getStationLogo().isEmpty()) {
-                                thumbnailUrl = metadata.getStationLogo();
-                            } else if (metadata.getAlbumArt() != null && !metadata.getAlbumArt().isEmpty()) {
-                                thumbnailUrl = metadata.getAlbumArt();
-                            } else {
-                                thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
-                            }
-                        } else if (track.getInfo().isStream) {
-                            sourceType = "Stream";
-                            source = "Web Stream";
-                            thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
-                            isStreamFlag = true;
-                        } else {
-                            if (track.getSourceManager() != null) {
-                                sourceType = track.getSourceManager().getSourceName();
-                                
-                                if (sourceType.equalsIgnoreCase("http")) {
-                                    sourceType = "Stream";
-                                    source = "Web Stream";
-                                } else {
-                                    sourceType = sourceType.substring(0, 1).toUpperCase() + sourceType.substring(1).toLowerCase();
-                                    source = sourceType;
-                                }
-                                
-                                thumbnailUrl = audioHandler.getSourceIconUrl(sourceType.toLowerCase());
-                            }
-                        }
-                    }
-                    break;
-            }
+            TrackPresentationData presentation = resolveTrackPresentation(audioHandler, track, info, rm);
+            String sourceType = presentation.sourceType;
+            String source = presentation.source;
+            String thumbnailUrl = presentation.thumbnailUrl;
+            String sourceIconUrl = presentation.sourceIconUrl;
+            String localAlbum = presentation.localAlbum;
+            String localGenre = presentation.localGenre;
+            String localYear = presentation.localYear;
+            boolean isStreamFlag = presentation.isStreamFlag;
+            radioLogoUrl = presentation.radioLogoUrl;
+            radioSongImageUrl = presentation.radioSongImageUrl;
             
             // Get requester info
             String requesterName = "Unknown";
@@ -795,6 +773,10 @@ public class MusicService {
      * Gets the current queue from the selected guild
      */
     public List<QueueTrack> getQueue() {
+        return getQueueInternal();
+    }
+
+    private List<QueueTrack> getQueueInternal() {
         Optional<AudioHandler> handler = getAudioHandler();
         
         if (handler.isEmpty()) {
@@ -812,157 +794,12 @@ public class MusicService {
                     // Get metadata for source type, requester, etc.
                     RequestMetadata rm = getRequestMetadata(track);
                     
-                    // Get source type and thumbnail
-                    String sourceType = "Unknown";
-                    String source = "Unknown";
-                    String thumbnailUrl = ""; // Initialize thumbnailUrl
-                    String sourceIconUrl = null;
-
-                    boolean platformFromYt = false;
-
-                    YtDlpSourceResolution ytResolution = resolveYtDlpSource(track, sourceType, source, thumbnailUrl);
-                    sourceType = ytResolution.sourceType;
-                    source = ytResolution.source;
-                    sourceIconUrl = ytResolution.sourceIconUrl;
-                    thumbnailUrl = ytResolution.thumbnailUrl;
-                    platformFromYt = ytResolution.platformFromYt;
-                    
-                    // Determine track type using AudioHandler methods
                     AudioHandler.TrackType trackType = handler.get().getTrackType(track);
-                    
-                    // For queue items, simplify thumbnail handling
-                    switch (trackType) {
-                        case YOUTUBE:
-                            if (!platformFromYt) {
-                                sourceType = "YouTube";
-                                source = "YouTube";
-                            }
-                            
-                            // Extract video ID for thumbnail only if not already set by yt-dlp
-                            if (thumbnailUrl.isEmpty()) {
-                                String videoId = null;
-                                if (info.uri.contains("youtu.be/")) {
-                                    videoId = info.uri.substring(info.uri.lastIndexOf("/") + 1);
-                                    if (videoId.contains("?")) {
-                                        videoId = videoId.substring(0, videoId.indexOf("?"));
-                                    }
-                                } else if (info.uri.contains("watch?v=")) {
-                                    videoId = info.uri.substring(info.uri.indexOf("watch?v=") + 8);
-                                    if (videoId.contains("&")) {
-                                        videoId = videoId.substring(0, videoId.indexOf("&"));
-                                    }
-                                }
-                                
-                                if (videoId != null) {
-                                    thumbnailUrl = "https://img.youtube.com/vi/" + videoId + "/mqdefault.jpg";
-                                }
-                            }
-                            break;
-                            
-                        case SPOTIFY:
-                            if (!platformFromYt) {
-                                sourceType = "Spotify";
-                                source = "Spotify";
-                            }
-                            
-                            String spotifyTrackId = null;
-                            RequestMetadata spotifyRm = getRequestMetadata(track);
-                            if (spotifyRm != null && spotifyRm.hasSpotifyData()) {
-                                spotifyTrackId = spotifyRm.getSpotifyTrackId();
-                                
-                                if (spotifyTrackId != null) {
-                                    String albumUrl = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumImageUrls.get(spotifyTrackId);
-                                    if (albumUrl != null && !albumUrl.isEmpty()) {
-                                        thumbnailUrl = albumUrl;
-                                    } else {
-                                        thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                                    }
-                                } else {
-                                    thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                                }
-                            } else {
-                                dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = 
-                                    handler.get().getSpotifyTrackInfo(); // This might be null if not the current playing track
-                                if (spotifyInfo != null && spotifyInfo.albumImageUrl != null && !spotifyInfo.albumImageUrl.isEmpty()) {
-                                    thumbnailUrl = spotifyInfo.albumImageUrl;
-                                } else {
-                                    thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                                }
-                            }
-                            break;
-                            
-                        case RADIO:
-                            sourceType = "Radio";
-                            String stationName = handler.get().getRadioStationName(track);
-                            String logoUrl = handler.get().getRadioLogoUrl(track);
-                            source = stationName != null ? stationName : "Radio Stream";
-                            
-                            if (logoUrl != null && !logoUrl.isEmpty()) {
-                                thumbnailUrl = logoUrl;
-                            } else {
-                                thumbnailUrl = "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png";
-                            }
-                            
-                            if (handler.get().isGensokyoRadioTrack(track)) {
-                                sourceType = "Gensokyo Radio";
-                                source = "Gensokyo Radio";
-                                thumbnailUrl = "https://stream.gensokyoradio.net/images/logo.png";
-                            }
-                            break;
-                            
-                        case SOUNDCLOUD:
-                            if (!platformFromYt) {
-                                sourceType = "SoundCloud";
-                                source = "SoundCloud";
-                            }
-                            if (info.artworkUrl != null && !info.artworkUrl.isEmpty()) {
-                                thumbnailUrl = info.artworkUrl;
-                            } else {
-                                thumbnailUrl = "https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png";
-                            }
-                            break;
-                            
-                        case LOCAL:
-                            if (!platformFromYt) {
-                                sourceType = "Local File"; // Corrected sourceType to match other places
-                                source = "Local File";
-                            }
-                            // Get the artwork path for local files
-                            thumbnailUrl = bot.getLocalArtworkPath(track.getIdentifier()); 
-                            if (thumbnailUrl == null || thumbnailUrl.isEmpty()) {
-                                // Fallback icon if no artwork path is found
-                                thumbnailUrl = "https://cdn-icons-png.flaticon.com/512/4725/4725478.png"; 
-                            }
-                            break;
-                            
-                        default: // OTHER or unknown types
-                            if (platformFromYt) {
-                                break;
-                            }
-                            if (track.getInfo().isStream) {
-                                sourceType = "Stream";
-                                source = "Web Stream";
-                                thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
-                            } else {
-                                // Try to determine source from track info
-                                if (track.getSourceManager() != null) {
-                                    sourceType = track.getSourceManager().getSourceName();
-                                    
-                                    // Make proper capitalization and friendly names
-                                    if (sourceType.equalsIgnoreCase("http")) {
-                                        sourceType = "Stream";
-                                        source = "Web Stream";
-                                    } else {
-                                        sourceType = sourceType.substring(0, 1).toUpperCase() + sourceType.substring(1).toLowerCase();
-                                        source = sourceType;
-                                    }
-                                    
-                                    // Use AudioHandler's icon cache
-                                    thumbnailUrl = handler.get().getSourceIconUrl(sourceType.toLowerCase());
-                                }
-                            }
-                            break;
-                    }
+                    TrackPresentationData presentation = resolveTrackPresentation(handler.get(), track, info, rm);
+                    String sourceType = presentation.sourceType;
+                    String source = presentation.source;
+                    String thumbnailUrl = presentation.thumbnailUrl;
+                    String sourceIconUrl = presentation.sourceIconUrl;
                     
                     // Get requester info
                     String requesterName = "Unknown";
