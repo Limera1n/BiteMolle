@@ -976,48 +976,9 @@ public class PlayCmd extends MusicCommand {
         }
     }
 
-    public class MylistCmd extends MusicCommand {
+    public class MylistCmd extends dev.cosgy.jmusicbot.slashcommands.music.MylistCmd.PlayCmd {
         public MylistCmd(Bot bot) {
             super(bot);
-            this.name = "mylist";
-            this.aliases = new String[]{"ml"};
-            this.arguments = "<name>";
-            this.help = "Play a mylist";
-            this.beListening = true;
-            this.bePlaying = false;
-
-            List<OptionData> options = new ArrayList<>();
-            options.add(new OptionData(OptionType.STRING, "name", "Mylist name", true));
-            this.options = options;
-        }
-
-        @Override
-        public void doCommand(CommandEvent event) {
-            String userId = event.getAuthor().getId();
-            if (event.getArgs().isEmpty()) {
-                event.reply(event.getClient().getError() + " Please include the mylist name.");
-                return;
-            }
-            MylistLoader.Playlist playlist = bot.getMylistLoader().getPlaylist(userId, event.getArgs());
-            if (playlist == null) {
-                event.replyError("Could not find `" + event.getArgs() + ".txt`");
-                return;
-            }
-            MylistLoadUtil.loadMylistForCommand(bot, event, playlist, event.getArgs());
-        }
-
-        @Override
-        public void doCommand(SlashCommandEvent event) {
-            String userId = event.getUser().getId();
-
-            String name = event.getOption("name").getAsString();
-
-            MylistLoader.Playlist playlist = bot.getMylistLoader().getPlaylist(userId, name);
-            if (playlist == null) {
-                event.reply(event.getClient().getError() + "Could not find `" + name + ".txt`").queue();
-                return;
-            }
-            MylistLoadUtil.loadMylistForSlash(bot, event, playlist, name);
         }
     }
 

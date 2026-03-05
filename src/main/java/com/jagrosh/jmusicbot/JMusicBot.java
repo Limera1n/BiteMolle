@@ -141,10 +141,7 @@ public class JMusicBot {
         GUI gui = initializeGui(prompt, log);
         installOAuthRefreshTokenCapture(config);
 
-        if (config.getAuditCommands()) {
-            COMMAND_AUDIT_ENABLED = true;
-            log.info("Command execution logging has been enabled.");
-        }
+        enableCommandAuditIfConfigured(config, log);
 
         // set up the listener
         EventWaiter waiter = new EventWaiter();
@@ -186,55 +183,77 @@ public class JMusicBot {
         if (config.useEval())
             cb.addCommand(new EvalCmd(bot));
         boolean nogame = configureCommandClientPresence(cb, config);
-        // Initialize the GUI window if it was created earlier
-        if (finalGui != null) {
-            try {
-                bot.setGUI(finalGui);
-                finalGui.init();
-                log.info("GUI window initialized and visible");
-            } catch (Exception e) {
-                log.error("Could not initialize the GUI window: " + e.getMessage());
-            }
-        }
+
+        initializeGuiWindow(finalGui, bot, log);
 
         log.info("Loaded settings from {}", config.getConfigLocation());
 
-        // attempt to log in and start
         final JDA[] jdaRef = new JDA[1];
+        JDA jda = startJdaOrExit(config, cb, waiter, bot, prompt, log, nogame);
+        jdaRef[0] = jda;
+        bot.setJDA(jda);
+
+        startWebPanelIfEnabled(config, bot, log);
+        registerShutdownHook(jdaRef, config, log);
+    }
+
+    private static void enableCommandAuditIfConfigured(BotConfig config, Logger log) {
+        if (!config.getAuditCommands()) {
+            return;
+        }
+        COMMAND_AUDIT_ENABLED = true;
+        log.info("Command execution logging has been enabled.");
+    }
+
+    private static void initializeGuiWindow(GUI gui, Bot bot, Logger log) {
+        if (gui == null) {
+            return;
+        }
         try {
-            JDA jda = startJda(config, cb, waiter, bot, prompt, log, nogame);
-            jdaRef[0] = jda;
-            bot.setJDA(jda);
+            bot.setGUI(gui);
+            gui.init();
+            log.info("GUI window initialized and visible");
+        } catch (Exception e) {
+            log.error("Could not initialize the GUI window: " + e.getMessage());
         }
-        catch (InvalidTokenException ex) {
-            //ex.getCause().getMessage();
-            prompt.alert(Prompt.Level.ERROR, "JMusicBot", ex + "\n" +
-                    "Please ensure you are editing the correct configuration file. Failed to log in with the bot token." +
-                    "Please enter the correct bot token. (Not the CLIENT SECRET!)\n" +
-                    "Configuration file location: " + config.getConfigLocation());
-            System.exit(1);
+    }
 
+    private static JDA startJdaOrExit(BotConfig config, CommandClientBuilder cb, EventWaiter waiter, Bot bot,
+                                      Prompt prompt, Logger log, boolean nogame) {
+        try {
+            return startJda(config, cb, waiter, bot, prompt, log, nogame);
+        } catch (InvalidTokenException ex) {
+            prompt.alert(Prompt.Level.ERROR, "JMusicBot", ex + "\n"
+                    + "Please ensure you are editing the correct configuration file. Failed to log in with the bot token."
+                    + "Please enter the correct bot token. (Not the CLIENT SECRET!)\n"
+                    + "Configuration file location: " + config.getConfigLocation());
+            System.exit(1);
         } catch (IllegalArgumentException ex) {
-
-            prompt.alert(Prompt.Level.ERROR, "JMusicBot", "Some settings are invalid:" + ex + "\n" +
-                    "Location of the configuration file: " + config.getConfigLocation());
+            prompt.alert(Prompt.Level.ERROR, "JMusicBot", "Some settings are invalid:" + ex + "\n"
+                    + "Location of the configuration file: " + config.getConfigLocation());
             System.exit(1);
         }
+        return null;
+    }
 
-        // Start web panel if enabled
-        if (config.isWebPanelEnabled()) {
-            try {
-                log.info("Starting Web Panel on port " + config.getWebPanelPort());
-                com.jagrosh.jmusicbot.webpanel.WebPanelApplication.start(bot, config.getWebPanelPort());
-            } catch (Exception e) {
-                log.error("Failed to start Web Panel", e);
-            }
+    private static void startWebPanelIfEnabled(BotConfig config, Bot bot, Logger log) {
+        if (!config.isWebPanelEnabled()) {
+            return;
         }
-        
-        // Shutdown hook
+
+        try {
+            log.info("Starting Web Panel on port " + config.getWebPanelPort());
+            com.jagrosh.jmusicbot.webpanel.WebPanelApplication.start(bot, config.getWebPanelPort());
+        } catch (Exception e) {
+            log.error("Failed to start Web Panel", e);
+        }
+    }
+
+    private static void registerShutdownHook(JDA[] jdaRef, BotConfig config, Logger log) {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (jdaRef[0] == null)
+            if (jdaRef[0] == null) {
                 return;
+            }
             jdaRef[0].shutdown();
             if (config.isWebPanelEnabled()) {
                 log.info("Stopping Web Panel");

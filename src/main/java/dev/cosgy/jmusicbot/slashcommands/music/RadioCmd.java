@@ -944,7 +944,7 @@ public class RadioCmd extends MusicCommand {
             SlashCommandEvent slashEvent) {
         
         // Check if it's the correct message
-        if (!event.getMessage().equals(message)) {
+        if (message == null || !event.getMessageId().equals(message.getId())) {
             return false;
         }
         
@@ -1196,7 +1196,9 @@ public class RadioCmd extends MusicCommand {
             .queue();
         
         // Load and play radio
-        loadAndPlayRadio(station, cmdEvent, null);
+        Guild slashGuild = slashEvent != null ? slashEvent.getGuild() : event.getGuild();
+        net.dv8tion.jda.api.entities.User slashUser = slashEvent != null ? slashEvent.getUser() : event.getUser();
+        loadAndPlayRadio(station, cmdEvent, slashGuild, slashUser);
     }
 
     /**
@@ -1207,10 +1209,10 @@ public class RadioCmd extends MusicCommand {
         message.editMessageComponents(disableAllButtons(message.getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList()))).queue();
     }
 
-    private void loadAndPlayRadio(RadioStation station, CommandEvent cmdEvent, net.dv8tion.jda.api.entities.User slashUser) {
+    private void loadAndPlayRadio(RadioStation station, CommandEvent cmdEvent, Guild slashGuild, net.dv8tion.jda.api.entities.User slashUser) {
         try {
             // Get the guild ID
-            final String guildId = getGuildId(cmdEvent, slashUser);
+            final String guildId = getGuildId(cmdEvent, slashGuild);
             
             // Cancel any existing timer for this guild
             if (guildId != null) {
@@ -1226,7 +1228,7 @@ public class RadioCmd extends MusicCommand {
             }
             
             // Create and setup handlers with the station logo
-            setupAndLoadAudioTrack(station, cmdEvent, slashUser, streamUrl, guildId);
+            setupAndLoadAudioTrack(station, cmdEvent, slashGuild, slashUser, streamUrl, guildId);
             
             // Save the station path for later updates
             saveStationInfoForUpdates(guildId, station);
@@ -1239,14 +1241,11 @@ public class RadioCmd extends MusicCommand {
     /**
      * Get the guild ID from either command event or slash user
      */
-    private String getGuildId(CommandEvent cmdEvent, net.dv8tion.jda.api.entities.User slashUser) {
+    private String getGuildId(CommandEvent cmdEvent, Guild slashGuild) {
         if (cmdEvent != null) {
             return cmdEvent.getGuild().getId();
-        } else if (slashUser != null) {
-            Guild guild = slashUser.getJDA().getGuildById(slashUser.getJDA().getSelfUser().getId());
-            if (guild != null) {
-                return guild.getId();
-            }
+        } else if (slashGuild != null) {
+            return slashGuild.getId();
         }
         return null;
     }
@@ -1313,7 +1312,7 @@ public class RadioCmd extends MusicCommand {
     /**
      * Setup and load the audio track for the radio station
      */
-    private void setupAndLoadAudioTrack(RadioStation station, CommandEvent cmdEvent, net.dv8tion.jda.api.entities.User slashUser, String streamUrl, String guildId) {
+    private void setupAndLoadAudioTrack(RadioStation station, CommandEvent cmdEvent, Guild slashGuild, net.dv8tion.jda.api.entities.User slashUser, String streamUrl, String guildId) {
         // Store the mapping of station path to stream URL for reverse lookup
         stationStreamUrls.put(station.path, streamUrl);
         
@@ -1322,14 +1321,11 @@ public class RadioCmd extends MusicCommand {
             RadioLoadHandler handler = new RadioLoadHandler(cmdEvent, station.title, station.path);
             handler.logoUrl = station.logoUrl;
             bot.getPlayerManager().loadItemOrdered(cmdEvent.getGuild(), streamUrl, handler);
-        } else if (slashUser != null) {
-            Guild guild = slashUser.getJDA().getGuildById(slashUser.getJDA().getSelfUser().getId());
-            if (guild != null) {
-                RadioLoadHandler handler = new RadioLoadHandler(null, station.title, slashUser, station.path);
-                handler.logoUrl = station.logoUrl;
-                bot.getPlayerManager().loadItemOrdered(guild, streamUrl, handler);
-                displayInitialEmbedForSlashCommand(guild, station);
-            }
+        } else if (slashGuild != null && slashUser != null) {
+            RadioLoadHandler handler = new RadioLoadHandler(null, station.title, slashGuild, slashUser, station.path);
+            handler.logoUrl = station.logoUrl;
+            bot.getPlayerManager().loadItemOrdered(slashGuild, streamUrl, handler);
+            displayInitialEmbedForSlashCommand(slashGuild, station);
         }
     }
 
@@ -1550,6 +1546,7 @@ public class RadioCmd extends MusicCommand {
     private class RadioLoadHandler implements AudioLoadResultHandler {
         private final CommandEvent event;
         private final String stationTitle;
+        private final Guild slashGuild;
         private final net.dv8tion.jda.api.entities.User slashUser;
         private final String stationPath;
         private String logoUrl; // Field to store the logo URL
@@ -1557,14 +1554,16 @@ public class RadioCmd extends MusicCommand {
         private RadioLoadHandler(CommandEvent event, String stationTitle, String stationPath) {
             this.event = event;
             this.stationTitle = cleanStationTitle(stationTitle);
+            this.slashGuild = null;
             this.slashUser = null;
             this.stationPath = stationPath;
             this.logoUrl = null;
         }
         
-        private RadioLoadHandler(CommandEvent event, String stationTitle, net.dv8tion.jda.api.entities.User slashUser, String stationPath) {
+        private RadioLoadHandler(CommandEvent event, String stationTitle, Guild slashGuild, net.dv8tion.jda.api.entities.User slashUser, String stationPath) {
             this.event = event;
             this.stationTitle = cleanStationTitle(stationTitle);
+            this.slashGuild = slashGuild;
             this.slashUser = slashUser;
             this.stationPath = stationPath;
             this.logoUrl = null;
@@ -1653,11 +1652,8 @@ public class RadioCmd extends MusicCommand {
         private String getGuildId() {
             if (event != null) {
                 return event.getGuild().getId();
-            } else if (slashUser != null) {
-                Guild guild = slashUser.getJDA().getGuildById(slashUser.getJDA().getSelfUser().getId());
-                if (guild != null) {
-                    return guild.getId();
-                }
+            } else if (slashGuild != null) {
+                return slashGuild.getId();
             }
             return null;
         }
@@ -1758,8 +1754,8 @@ public class RadioCmd extends MusicCommand {
          * Add track to queue for slash commands and display response
          */
         private void addTrackToSlashQueue(AudioTrack track) {
-            Guild guild = slashUser.getJDA().getGuildById(slashUser.getJDA().getSelfUser().getId());
-            if (guild != null) {
+            Guild guild = slashGuild;
+            if (guild != null && slashUser != null) {
                 // Ensure RequestMetadata is properly set up
                 com.jagrosh.jmusicbot.audio.RequestMetadata rm;
                 if (track.getUserData() instanceof com.jagrosh.jmusicbot.audio.RequestMetadata) {
@@ -2430,9 +2426,9 @@ public class RadioCmd extends MusicCommand {
             @Override
             public void run() {
                 if (cmdEvent != null) {
-                    loadAndPlayRadio(station, cmdEvent, null);
+                    loadAndPlayRadio(station, cmdEvent, null, null);
                 } else if (slashEvent != null) {
-                    loadAndPlayRadio(station, null, slashEvent.getUser());
+                    loadAndPlayRadio(station, null, slashEvent.getGuild(), slashEvent.getUser());
                 }
             }
         }, 1500);

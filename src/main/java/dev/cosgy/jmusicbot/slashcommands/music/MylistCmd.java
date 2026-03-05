@@ -119,7 +119,7 @@ public class MylistCmd extends MusicCommand {
         }
     }
 
-    public class PlayCmd extends MusicCommand {
+    public static class PlayCmd extends MusicCommand {
         public PlayCmd(Bot bot) {
             super(bot);
             this.name = "play";
