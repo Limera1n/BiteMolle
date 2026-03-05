@@ -101,23 +101,26 @@ public class MylistLoader {
     public Playlist getPlaylist(String userId, String name) {
         if (!getPlaylistNames(userId).contains(name))
             return null;
+        if (!folderExists()) {
+            createFolder();
+            createUserFolder(userId);
+            return null;
+        }
+        if (!folderUserExists(userId)) {
+            createUserFolder(userId);
+            return null;
+        }
+
+        return loadPlaylistFromPath(name, Paths.get(config.getMylistfolder() + File.separator + userId + File.separator + name + ".txt"));
+    }
+
+    private Playlist loadPlaylistFromPath(String name, java.nio.file.Path playlistPath) {
         try {
-            if (folderExists()) {
-                if (folderUserExists(userId)) {
-                    PlaylistSourceReader.Result source = PlaylistSourceReader.read(Paths.get(config.getMylistfolder() + File.separator + userId + File.separator + name + ".txt"));
-                    List<String> list = source.getItems();
-                    if (source.isShuffle())
-                        shuffle(list);
-                    return new Playlist(name, list, source.isShuffle());
-                } else {
-                    createUserFolder(userId);
-                    return null;
-                }
-            } else {
-                createFolder();
-                createUserFolder(userId);
-                return null;
-            }
+            PlaylistSourceReader.Result source = PlaylistSourceReader.read(playlistPath);
+            List<String> list = source.getItems();
+            if (source.isShuffle())
+                shuffle(list);
+            return new Playlist(name, list, source.isShuffle());
         } catch (IOException e) {
             return null;
         }
@@ -165,34 +168,27 @@ public class MylistLoader {
             if (loaded)
                 return;
             loaded = true;
-            PlaylistAsyncLoader.loadTracks(
-                    manager,
-                    name,
-                    items,
-                    shuffle,
-                    config,
-                    tracks,
-                    errors,
-                    consumer,
-                    callback,
-                    this::shuffleTracks,
-                    new PlaylistAsyncLoader.ErrorFactory<>() {
-                        @Override
-                        public PlaylistLoadError tooLong(int index, String item) {
-                            return new PlaylistLoadError(index, item, "This track exceeds the allowed maximum length.");
-                        }
+            PlaylistAsyncLoader.loadTracks(manager, name, items, shuffle, config, tracks, errors, consumer, callback,
+                    this::shuffleTracks, createErrorFactory());
+        }
 
-                        @Override
-                        public PlaylistLoadError noMatches(int index, String item) {
-                            return new PlaylistLoadError(index, item, "No matching item was found.");
-                        }
+        private PlaylistAsyncLoader.ErrorFactory<PlaylistLoadError> createErrorFactory() {
+            return new PlaylistAsyncLoader.ErrorFactory<>() {
+                @Override
+                public PlaylistLoadError tooLong(int index, String item) {
+                    return new PlaylistLoadError(index, item, "This track exceeds the allowed maximum length.");
+                }
 
-                        @Override
-                        public PlaylistLoadError loadFailed(int index, String item, com.sedmelluq.discord.lavaplayer.tools.FriendlyException exception) {
-                            return new PlaylistLoadError(index, item, "Failed to load the track: " + exception.getLocalizedMessage());
-                        }
-                    }
-            );
+                @Override
+                public PlaylistLoadError noMatches(int index, String item) {
+                    return new PlaylistLoadError(index, item, "No matching item was found.");
+                }
+
+                @Override
+                public PlaylistLoadError loadFailed(int index, String item, com.sedmelluq.discord.lavaplayer.tools.FriendlyException exception) {
+                    return new PlaylistLoadError(index, item, "Failed to load the track: " + exception.getLocalizedMessage());
+                }
+            };
         }
 
         public void shuffleTracks() {

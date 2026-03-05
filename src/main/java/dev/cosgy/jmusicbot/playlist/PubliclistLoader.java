@@ -71,17 +71,21 @@ public class PubliclistLoader {
     public Playlist getPlaylist(String name) {
         if (!getPlaylistNames().contains(name))
             return null;
+        if (!folderExists()) {
+            createFolder();
+            return null;
+        }
+
+        return loadPlaylistFromPath(name, OtherUtil.getPath(config.getPublistFolder() + File.separator + name + ".txt"));
+    }
+
+    private Playlist loadPlaylistFromPath(String name, java.nio.file.Path playlistPath) {
         try {
-            if (folderExists()) {
-                PlaylistSourceReader.Result source = PlaylistSourceReader.read(OtherUtil.getPath(config.getPublistFolder() + File.separator + name + ".txt"));
-                List<String> list = source.getItems();
-                if (source.isShuffle())
-                    shuffle(list);
-                return new Playlist(name, list, source.isShuffle());
-            } else {
-                createFolder();
-                return null;
-            }
+            PlaylistSourceReader.Result source = PlaylistSourceReader.read(playlistPath);
+            List<String> list = source.getItems();
+            if (source.isShuffle())
+                shuffle(list);
+            return new Playlist(name, list, source.isShuffle());
         } catch (IOException e) {
             return null;
         }
@@ -129,34 +133,27 @@ public class PubliclistLoader {
             if (loaded)
                 return;
             loaded = true;
-            PlaylistAsyncLoader.loadTracks(
-                    manager,
-                    name,
-                    items,
-                    shuffle,
-                    config,
-                    tracks,
-                    errors,
-                    consumer,
-                    callback,
-                    this::shuffleTracks,
-                    new PlaylistAsyncLoader.ErrorFactory<>() {
-                        @Override
-                        public PlaylistLoadError tooLong(int index, String item) {
-                            return new PlaylistLoadError(index, item, "This track exceeds the allowed maximum length");
-                        }
+            PlaylistAsyncLoader.loadTracks(manager, name, items, shuffle, config, tracks, errors, consumer, callback,
+                    this::shuffleTracks, createErrorFactory());
+        }
 
-                        @Override
-                        public PlaylistLoadError noMatches(int index, String item) {
-                            return new PlaylistLoadError(index, item, "No matching item was found.");
-                        }
+        private PlaylistAsyncLoader.ErrorFactory<PlaylistLoadError> createErrorFactory() {
+            return new PlaylistAsyncLoader.ErrorFactory<>() {
+                @Override
+                public PlaylistLoadError tooLong(int index, String item) {
+                    return new PlaylistLoadError(index, item, "This track exceeds the allowed maximum length");
+                }
 
-                        @Override
-                        public PlaylistLoadError loadFailed(int index, String item, com.sedmelluq.discord.lavaplayer.tools.FriendlyException exception) {
-                            return new PlaylistLoadError(index, item, "Failed to load the track: " + exception.getLocalizedMessage());
-                        }
-                    }
-            );
+                @Override
+                public PlaylistLoadError noMatches(int index, String item) {
+                    return new PlaylistLoadError(index, item, "No matching item was found.");
+                }
+
+                @Override
+                public PlaylistLoadError loadFailed(int index, String item, com.sedmelluq.discord.lavaplayer.tools.FriendlyException exception) {
+                    return new PlaylistLoadError(index, item, "Failed to load the track: " + exception.getLocalizedMessage());
+                }
+            };
         }
 
         public void shuffleTracks() {
