@@ -12,7 +12,6 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * @author kosugi_kun
@@ -22,15 +21,6 @@ public class PubliclistLoader {
 
     public PubliclistLoader(BotConfig config) {
         this.config = config;
-    }
-
-    private static <T> void shuffle(List<T> list) {
-        IntStream.range(0, list.size()).forEach(first -> {
-            int second = (int) (Math.random() * list.size());
-            T tmp = list.get(first);
-            list.set(first, list.get(second));
-            list.set(second, tmp);
-        });
     }
 
     public List<String> getPlaylistNames() {
@@ -81,11 +71,8 @@ public class PubliclistLoader {
 
     private Playlist loadPlaylistFromPath(String name, java.nio.file.Path playlistPath) {
         try {
-            PlaylistSourceReader.Result source = PlaylistSourceReader.read(playlistPath);
-            List<String> list = source.getItems();
-            if (source.isShuffle())
-                shuffle(list);
-            return new Playlist(name, list, source.isShuffle());
+            PlaylistLoaderSupport.LoadedPlaylist source = PlaylistLoaderSupport.readPlaylist(playlistPath);
+            return new Playlist(name, source.getItems(), source.isShuffle());
         } catch (IOException e) {
             return null;
         }
@@ -157,7 +144,7 @@ public class PubliclistLoader {
         }
 
         public void shuffleTracks() {
-            shuffle(tracks);
+            PlaylistLoaderSupport.shuffle(tracks);
         }
 
         public String getName() {
