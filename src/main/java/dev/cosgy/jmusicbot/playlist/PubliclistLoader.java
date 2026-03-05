@@ -149,13 +149,8 @@ public class PubliclistLoader {
 
                     @Override
                     public void trackLoaded(AudioTrack at) {
-                        if (config.isTooLong(at))
+                        if (!PlaylistLoadSupport.addTrackIfAllowed(at, config, tracks, consumer))
                             errors.add(new PlaylistLoadError(index, items.get(index), "This track exceeds the allowed maximum length"));
-                        else {
-                            at.setUserData(0L);
-                            tracks.add(at);
-                            consumer.accept(at);
-                        }
                         done();
                     }
 
@@ -166,18 +161,7 @@ public class PubliclistLoader {
                         } else if (ap.getSelectedTrack() != null) {
                             trackLoaded(ap.getSelectedTrack());
                         } else {
-                            List<AudioTrack> loaded = new ArrayList<>(ap.getTracks());
-                            if (shuffle)
-                                for (int first = 0; first < loaded.size(); first++) {
-                                    int second = (int) (Math.random() * loaded.size());
-                                    AudioTrack tmp = loaded.get(first);
-                                    loaded.set(first, loaded.get(second));
-                                    loaded.set(second, tmp);
-                                }
-                            loaded.removeIf(config::isTooLong);
-                            loaded.forEach(at -> at.setUserData(0L));
-                            tracks.addAll(loaded);
-                            loaded.forEach(consumer);
+                            PlaylistLoadSupport.appendPlaylistTracks(ap, shuffle, config, tracks, consumer);
                         }
                         done();
                     }
