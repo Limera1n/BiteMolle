@@ -272,7 +272,7 @@
     margin-bottom: 0;
     display: flex;
     flex-direction: column;
-    padding: 15px 15px 20px 15px;
+    padding: 15px 15px 20px;
     flex: 1 1 0; /* Allow it to expand and shrink properly */
     min-height: 0; /* Critical for nested flex scrolling */
     position: relative; /* For absolute positioning of elements inside */
@@ -1022,7 +1022,7 @@ code {
 blockquote {
     border-left: 4px solid #4f545c;
     padding: 0 8px;
-    margin: 4px 0 4px 0;
+    margin: 4px 0;
     color: #b9bbbe;
     background-color: rgba(64, 68, 75, 0.3);
     border-radius: 0 4px 4px 0;
@@ -1684,7 +1684,7 @@ pre {
 
 /* Wrapper for scrollable content */
 .profile-content-wrapper {
-    padding: 0 16px 16px 16px;
+    padding: 0 16px 16px;
     overflow-y: auto;
     flex-grow: 1;
     background-color: #202225; /* Slightly lighter than main popup for content area */

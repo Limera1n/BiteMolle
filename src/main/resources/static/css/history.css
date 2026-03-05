@@ -767,7 +767,7 @@
 }
 
 .history-sentinel {
-    padding: 12px 0 20px 0;
+    padding: 12px 0 20px;
     text-align: center;
     color: var(--muted-text);
     font-size: 13px;
