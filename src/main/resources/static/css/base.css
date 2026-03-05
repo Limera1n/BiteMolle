@@ -1,0 +1,305 @@
+/**
+ * Base styles and CSS variables for JMusicBot Web Panel
+ */
+
+:root {
+    --primary-color: #7289DA;
+    --primary-hover: #5a6cbd;
+    --dark-bg: #2C2F33;
+    --darker-bg: #23272A;
+    --darkest-bg: #1e2124;  
+    --light-text: #FFFFFF;
+    --muted-text: #B9BBBE;
+    --border-color: #4a4d51;
+    --success-color: #43B581;
+    --error-color: #F04747;
+    --header-height: 70px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--dark-bg);
+    color: var(--light-text);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Common button styles */
+button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: var(--primary-hover);
+}
+
+button:disabled {
+    background-color: var(--border-color);
+    cursor: not-allowed;
+}
+
+/* Common Card Style for all views */
+.view-card {
+    background-color: var(--darker-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    margin-bottom: 20px;
+    width: 100%;
+    color: var(--light-text);
+}
+
+/* Main content layout */
+.main-content {
+    width: 100%;
+    max-width: 1200px;
+    padding: 20px 20px 0 20px;
+    margin: 0 auto;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--header-height));
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) var(--darkest-bg);
+    scrollbar-gutter: stable;
+}
+
+.main-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.main-content::-webkit-scrollbar-track {
+    background: var(--darkest-bg);
+}
+
+.main-content::-webkit-scrollbar-thumb {
+    background-color: var(--primary-color);
+    border-radius: 4px;
+}
+
+.content-with-chapters {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    align-items: flex-start;
+    flex-grow: 1;
+}
+
+.main-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+/* Responsive styles */
+@media (max-width: 1150px) {
+    :root {
+        --header-height: 220px;
+    }
+    
+    body {
+        padding: 0;
+    }
+    
+    .main-content {
+        padding: 10px;
+        height: auto;
+        min-height: calc(100vh - var(--header-height) - 20px);
+        overflow-y: visible;
+    }
+    
+    .view-card {
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 6px;
+    }
+    
+    .content-with-chapters {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    button {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    
+    .form-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-buttons button {
+        width: 100%;
+    }
+    
+    /* Toast notifications - adjust position for mobile */
+    .toast-container {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+    }
+    
+    .toast {
+        max-width: 100%;
+        font-size: 13px;
+    }
+    
+    .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --header-height: 200px;
+    }
+    
+    .main-content {
+        padding: 8px;
+        min-height: calc(100vh - var(--header-height) - 20px);
+    }
+    
+    .view-card {
+        padding: 12px;
+        border-radius: 4px;
+    }
+    
+    button {
+        padding: 7px 14px;
+        font-size: 13px;
+    }
+} 
+
+/* Notification */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background-color: var(--darker-bg);
+    color: var(--light-text);
+    z-index: 1000;
+    max-width: 300px;
+    transition: opacity 0.5s;
+}
+
+.notification.success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.notification.error {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.notification.fade-out {
+    opacity: 0;
+}
+
+/* Toast Messages */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background-color: var(--darker-bg);
+    color: var(--light-text);
+    padding: 12px 16px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(50px);
+    animation: slideIn 0.3s forwards, fadeOut 0.5s forwards 4.5s;
+    max-width: 300px;
+    border-left: 4px solid var(--primary-color);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.toast.success {
+    border-left-color: var(--success-color);
+}
+
+.toast::before {
+    content: '';
+    margin-right: 10px;
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+}
+
+.toast.success::before {
+    content: '\f00c';
+    color: var(--success-color);
+}
+
+.toast.error {
+    border-left-color: var(--error-color);
+}
+
+.toast.error::before {
+    content: '\f00d';
+    color: var(--error-color);
+}
+
+@keyframes slideIn {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    to { opacity: 0; transform: translateY(-20px); }
+}
+
+/* For channels page specifically */
+#channels-component {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+} 
+
+/* Avatar styles */
+.requester-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 5px;
+    object-fit: cover;
+    display: inline-block;
+}

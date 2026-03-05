@@ -2,15 +2,131 @@
 
 ---
 
-# XX September 2025
+# 04 March 2026
 
-## ▶️ Youtube playback fixed with **[`youtube-source 1.13.6`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.6)**
+## ▶️ Fixed bot join/quit loop.
+
+### 🔧 Changes
+- Added DAVE (jdave) dependencies.
+- Updated to Java 25.
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.17.0` → `1.18.0`
+- **dev.arbjerg-lavaplayer**: `2.2.4` → `2.2.6`
+- **net.dv8tion-JDA**: `5.6.1` → `6.3.1`
+- **spring-boot-starter-web**: `3.3.0` → `4.1.0-M2`
+- **spring-boot-starter-websocket**: `3.3.0` → `4.1.0-M2`
+---
+
+# 21 February 2026
+
+### 🚀 New Features
+- IPv6 rotation implementation.
+
+### 🔧 Changes
+- Better console in webpanel.
+- Fixed yt-dlp for linux download.
+
+### 📦 Dependency Updates
+- **dev.arbjerg-lavaplayer**: `2.2.4` → `2.2.6`
++ **dev.arbjerg-lavaplayer-ext-youtube-rotator**: `2.2.6`
+
+---
+
+# 06 February 2026
+
+### 🔧 Changes
+- Webpanel :
+    - Volume control slider in player.
+    - Discord users avatars caching.
+    - Favicon for all yt-dlp sources.
+
+---
+
+# 29 January 2026
+
+### 🚀 New Features
+- `/shuffle` now have 2 modes, "all" tracks in queue or "mytracks" only.
+- yt-dlp support for all **[`supported sites`](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)**.
+
+### 🔧 Changes
+- Webpanel : Responsive mobile version, better layout.
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.16.0` → `1.17.0`
+
+---
+
+# 08 January 2026
+
+### 🔧 Changes
+- yt-dlp JS runtime (Deno) + cookies
+- Better web panel history : 
+infinite scroll, instant search and time range calendar
+
+---
+
+# 16 December 2025
+
+## ▶️ Added yt-dlp support for 3 new sources : Instagram, Tiktok, X / Twitter.
+
+### 🚀 New Features
+- yt-dlp support for Instagram, Tiktok, Twitter.
+
+### 🔧 Changes
+- Clear yt-dlp cache when bot leave VC.
+- Web panel, playing status and history support for the new sources.
+
+---
+
+# 12 December 2025
+
+## ▶️ Added Youtube fallback if youtube-source fail with **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)**
+
+### 🚀 New Features
+- Added yt-dlp fallback.
+
+### 🔧 Changes
+- Switched Web panel to SPA, interface now more responsive.
+- Fixed minors bugs and visuals in web panel.
+- Added `/SetTopicStatus` command. ( to use with `/SetTC set` )
+- Fixed `/SetVCStatus` not saving in "serversettings.json".
+
+---
+
+# 25 November 2025
+
+## ▶️ Youtube playback fixed by not refreshing "ytRefreshToken". (YouTube OAuth2)
+
+### 🔧 Changes
+- History fixes ( Removed history size limit + Youtube livestream added multiples times )
+- Added "LIVE" indicator under player for Youtube streams.
+- Fixed country flag emoji in radio station search results.
+
+---
+
+# 05 November 2025
+
+## ▶️ Youtube playback fixed with **[`youtube-source 1.16.0`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.16.0)**
+
+Don't forget to update [`yt-cipher`](https://github.com/kikkia/yt-cipher)**
+
+### 📦 Dependency Updates
+- **youtube-source**: `ff19b6f1751262ecba7b81fcf391b961008962d1-SNAPSHOT` → `1.16.0`
+
+---
+
+# 29 September 2025
+
+## ▶️ Youtube playback fixed with **[`yt-cipher`](https://github.com/kikkia/yt-cipher)**
 
 ### 🔧 Changes
 - Web panel update : history fixes ( search pages and time range filter ) + Youtube chapters highlight
 
 ### 📦 Dependency Updates
-- **youtube-source**: `1.13.5` → `1.13.6`
+- **youtube-source**: `1.13.5` → `ff19b6f1751262ecba7b81fcf391b961008962d1-SNAPSHOT`
+- **net.dv8tion-JDA**: `5.5.0` → `5.6.1` 
+- **dev.arbjerg-lavaplayer**: `2.2.3` → `2.2.4`
 
 ---
 

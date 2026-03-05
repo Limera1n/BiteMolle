@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JMusicBot Web Panel</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/header.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/player.css">
+    <link rel="stylesheet" href="css/queue.css">
+    <link rel="stylesheet" href="css/add-track.css">
+    <link rel="stylesheet" href="css/youtube-chapters.css">
+    <link rel="stylesheet" href="css/history.css">
+    <link rel="stylesheet" href="css/channels.css">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/pulsar-gradient/48/aipods-pro-max.png" id="favicon">
+
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+
+    <!-- Main scripts -->
+    <script src="js/components.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/script.js"></script>
+    <script src="js/history.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header" id="header-container">
+        <!-- Header will be loaded here by components.js -->
+    </header>
+
+    <!-- Main Content View Container -->
+    <div class="main-content">
+        <div id="main-view">
+            <!-- Views will be loaded here by router.js -->
+        </div>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modals-container">
+        <!-- Modals will be loaded here by components.js -->
+    </div>
+    
+    <!-- Toast container for notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        // Flag to indicate we're using the modular system
+        window.usingModularSystem = true;
+        
+        // Initialize page when DOM content is loaded
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Load common components
+                await loadComponent('header', '#header-container');
+                await loadComponent('modals', '#modals-container');
+                
+                // Load all modules
+                await Promise.all([
+                    loadScript('js/modules/server-manager.js'),
+                    loadScript('js/modules/player.js'),
+                    loadScript('js/modules/ui.js'),
+                    loadScript('js/modules/youtube-chapters.js'),
+                    loadScript('js/modules/bot-profile.js'),
+                    loadScript('js/modules/config-manager.js'),
+                    loadScript('js/modules/console-manager.js'),
+                    loadScript('js/modules/channels-manager.js'),
+                    loadScript('js/modules/commands.js')
+                ]);
+                
+                // Initialize app core
+                if (typeof initializeApp === 'function') {
+                    // We need to separate app initialization from view initialization
+                    // initializeApp in script.js currently does both.
+                    // For now, let's call it, but we might need to refactor script.js
+                    // actually, initializeApp sets up UI, ServerManager, BotProfile, Player.
+                    // These are global.
+                    
+                    // Wait a bit for scripts to parse
+                    setTimeout(() => {
+                        initializeApp();
+                        
+                        // Initialize Router
+                        Router.init();
+                    }, 100);
+                } else {
+                    console.error('initializeApp function not found');
+                }
+            } catch (error) {
+                console.error('Failed to initialize page:', error);
+            }
+        });
+    </script>
+</body>
+</html>

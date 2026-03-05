@@ -1,0 +1,177 @@
+/**
+ * YouTube chapters styles for JMusicBot Web Panel
+ */
+
+/* Chapters drawer that aligns to the player's right edge (desktop) */
+.chapters-sidebar {
+    width: 320px;
+    max-width: min(360px, 92vw);
+    max-height: calc(100vh - 140px);
+    position: fixed;
+    top: var(--chapters-top, 120px);
+    left: var(--chapters-left, auto);
+    right: 16px;
+    display: none;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 405;
+}
+
+body.has-chapters .chapters-sidebar {
+    display: block;
+}
+
+body.chapters-open .chapters-sidebar {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* YouTube Chapters Section */
+.chapters-container {
+    width: 100%;
+    min-width: 280px;
+    background-color: var(--darker-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    display: none; /* Hidden by default, will be shown when YouTube video with chapters is playing */
+    flex-shrink: 0;
+    position: sticky;
+    top: 90px; /* Adjust based on your header height */
+    max-height: calc(100vh - 110px); /* Adjust based on your header height */
+    align-self: flex-start;
+}
+
+.chapters-header {
+    position: sticky;
+    top: 0;
+    background-color: var(--darker-bg);
+    z-index: 5;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    background-color: var(--darker-bg);
+}
+
+.chapters-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--light-text);
+    margin-bottom: 5px;
+}
+
+.chapters-title i {
+    color: #FF0000; /* YouTube red */
+    margin-right: 8px;
+}
+
+.chapters-info {
+    font-size: 14px;
+    color: var(--muted-text);
+}
+
+.chapters-list {
+    overflow-y: auto;
+    padding: 10px 0 25px; /* Extra bottom padding to prevent last item cutoff */
+    scrollbar-width: thin;
+    max-height: calc(100vh - 160px); /* Adjust based on your header height */
+}
+
+.chapter-item {
+    display: flex;
+    padding: 10px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    align-items: center;
+}
+
+.chapter-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.chapter-item.active {
+    background-color: rgba(114, 137, 218, 0.2);
+    border-left: 3px solid var(--primary-color);
+}
+
+.chapter-time {
+    font-family: monospace;
+    color: var(--muted-text);
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.chapter-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Adjust layout on larger screens to prevent overlap */
+@media (min-width: 1201px) {
+    body.chapters-open {
+        /* 
+         * Fluid padding:
+         * - At 1550px: Need 350px padding (max shift).
+         * - At 1900px: Need 0px padding (space exists).
+         * Formula: Linear interpolation from 350px at 1550px down to 0px at 1900px.
+         * The correct slope to prevent overlap is steeper: 1900px - 100vw.
+         * Using clamp to ensure it stays between 0 and 350.
+         * 
+         * NO TRANSITION: We must apply this padding instantly during resize to match 
+         * the sidebar's position calculation and prevent overlap or gaps/lag.
+         */
+        padding-right: clamp(0px, 1900px - 100vw, 350px);
+    }
+
+    /* Fluid positioning for the sidebar */
+    .chapters-sidebar {
+        /*
+         * Simplified locking mechanism:
+         * 1. Stick to right edge (100vw - 330px) when screen < 1900px.
+         *    (The body padding handles pushing the content away)
+         * 2. Lock to content center (50vw + 620px) when screen > 1900px.
+         */
+        left: min(100vw - 330px, 50vw + 620px);
+        right: auto;
+    }
+}
+/* Responsive adjustments for smaller screens */
+
+@media (max-width: 1200px) {
+    .chapters-sidebar {
+        position: static;
+        width: 100%;
+        max-width: none;
+        transform: none !important;
+        opacity: 1;
+        pointer-events: auto;
+        margin: 0 auto 20px;
+        right: auto;
+        left: 0;
+    }
+    
+    body.has-chapters .chapters-sidebar {
+        display: none;
+    }
+    
+    body.chapters-open.has-chapters .chapters-sidebar {
+        display: block;
+    }
+    
+    .chapters-container {
+        max-height: 400px;
+        position: relative;
+        top: 0;
+    }
+    
+    .chapters-list {
+        max-height: 350px;
+    }
+}
