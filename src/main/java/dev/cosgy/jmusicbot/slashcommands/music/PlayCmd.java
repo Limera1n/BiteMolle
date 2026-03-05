@@ -781,90 +781,119 @@ public class PlayCmd extends MusicCommand {
 
         @Override
         public void doCommand(SlashCommandEvent event) {
-
             if (event.getOption("input") == null) {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                if (handler.getPlayer().getPlayingTrack() != null && handler.getPlayer().isPaused()) {
-                    if (DJCommand.checkDJPermission(event.getClient(), event)) {
-
-                        handler.getPlayer().setPaused(false);
-                        event.reply(event.getClient().getSuccess() + "**Resumed playing " + handler.getPlayer().getPlayingTrack().getInfo().title + "**.").queue();
-
-                        Bot.updatePlayStatus(event.getGuild(), DiscordCompat.getSelfMember(event.getGuild()), PlayStatus.PLAYING);
-                    } else
-                        event.reply(event.getClient().getError() + "Only the DJ can resume playback!").queue();
-                    return;
-                }
-
-                // Cache loading mechanism
-                if (bot.getCacheLoader().cacheExists(event.getGuild().getId())) {
-                    List<Cache> data = bot.getCacheLoader().GetCache(event.getGuild().getId());
-
-                    AtomicInteger count = new AtomicInteger();
-                    CacheLoader.CacheResult cache = bot.getCacheLoader().ConvertCache(data);
-                    event.reply(":calling: Loading cache file... (" + cache.getItems().size() + " tracks)").queue(m -> {
-                        cache.loadTracks(bot.getPlayerManager(), (at) -> {
-							
-                            handler.addTrack(new QueuedTrack(at, event.getUser()));
-                            count.getAndIncrement();
-                        }, () -> {
-                            StringBuilder builder = new StringBuilder(cache.getTracks().isEmpty()
-                                    ? event.getClient().getWarning() + " No tracks were loaded."
-                                    : event.getClient().getSuccess() + " Loaded **" + cache.getTracks().size() + "** tracks from the cache file.");
-                            if (!cache.getErrors().isEmpty())
-                                builder.append("\nThe following tracks could not be loaded:");
-                            cache.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1).append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                            String str = builder.toString();
-                            if (str.length() > 2000)
-                                str = str.substring(0, 1994) + " (truncated)";
-                            m.editOriginal(FormatUtil.filter(str)).queue();
-                        });
-                    });
-                    try {
-                        bot.getCacheLoader().deleteCache(event.getGuild().getId());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    return;
-                }
-
-                if (handler.playFromDefault()) {
-                    Settings settings = event.getClient().getSettingsFor(event.getGuild());
-                    handler.stopAndClear();
-                    Playlist playlist = bot.getPlaylistLoader().getPlaylist(event.getGuild().getId(), settings.getDefaultPlaylist());
-                    if (playlist == null) {
-                        event.reply("Could not find `" + event.getOption("input").getAsString() + ".txt` in the playlist folder.").queue();
-                        return;
-                    }
-                    event.reply(loadingEmoji + " Loading playlist **" + settings.getDefaultPlaylist() + "** ... (" + playlist.getItems().size() + " tracks)").queue(m ->
-                    {
-
-                        playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
-                            StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                                    ? event.getClient().getWarning() + " No tracks were loaded!"
-                                    : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks!");
-                            if (!playlist.getErrors().isEmpty())
-                                builder.append("\nThe following tracks could not be loaded:");
-                            playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1).append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                            String str = builder.toString();
-                            if (str.length() > 2000)
-                                str = str.substring(0, 1994) + " (...)";
-                            m.editOriginal(FormatUtil.filter(str)).queue();
-                        });
-                    });
-                    return;
-
-                }
-
-                StringBuilder builder = new StringBuilder(event.getClient().getWarning() + " Play command:\n");
-                builder.append("\n`").append(event.getClient().getPrefix()).append(name).append(" <song name>` - Play the first result from YouTube");
-                builder.append("\n`").append(event.getClient().getPrefix()).append(name).append(" <URL>` - Play the specified song, playlist, or stream");
-                for (Command cmd : children)
-                    builder.append("\n`").append(event.getClient().getPrefix()).append(name).append(" ").append(cmd.getName()).append(" ").append(cmd.getArguments()).append("` - ").append(cmd.getHelp());
-                event.reply(builder.toString()).queue();
+                handleSlashRequestWithoutInput(event);
                 return;
             }
-            event.reply(loadingEmoji + "Loading `[" + event.getOption("input").getAsString() + "]`...").queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), event.getOption("input").getAsString(), new SlashResultHandler(m, event, false)));
+            String input = event.getOption("input").getAsString();
+            event.reply(loadingEmoji + "Loading `[" + input + "]`...")
+                    .queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), input, new SlashResultHandler(m, event, false)));
+        }
+
+        private void handleSlashRequestWithoutInput(SlashCommandEvent event) {
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            if (tryResumeSlashPlayback(event, handler)) {
+                return;
+            }
+            if (tryLoadSlashCache(event, handler)) {
+                return;
+            }
+            if (tryLoadSlashDefaultPlaylist(event, handler)) {
+                return;
+            }
+            replySlashPlayUsage(event);
+        }
+
+        private boolean tryResumeSlashPlayback(SlashCommandEvent event, AudioHandler handler) {
+            if (handler.getPlayer().getPlayingTrack() == null || !handler.getPlayer().isPaused()) {
+                return false;
+            }
+            if (DJCommand.checkDJPermission(event.getClient(), event)) {
+                handler.getPlayer().setPaused(false);
+                event.reply(event.getClient().getSuccess() + "**Resumed playing " + handler.getPlayer().getPlayingTrack().getInfo().title + "**.").queue();
+                Bot.updatePlayStatus(event.getGuild(), DiscordCompat.getSelfMember(event.getGuild()), PlayStatus.PLAYING);
+            } else {
+                event.reply(event.getClient().getError() + "Only the DJ can resume playback!").queue();
+            }
+            return true;
+        }
+
+        private boolean tryLoadSlashCache(SlashCommandEvent event, AudioHandler handler) {
+            if (!bot.getCacheLoader().cacheExists(event.getGuild().getId())) {
+                return false;
+            }
+            List<Cache> data = bot.getCacheLoader().GetCache(event.getGuild().getId());
+            AtomicInteger count = new AtomicInteger();
+            CacheLoader.CacheResult cache = bot.getCacheLoader().ConvertCache(data);
+            event.reply(":calling: Loading cache file... (" + cache.getItems().size() + " tracks)").queue(m -> {
+                cache.loadTracks(bot.getPlayerManager(), at -> {
+                    handler.addTrack(new QueuedTrack(at, event.getUser()));
+                    count.getAndIncrement();
+                }, () -> {
+                    StringBuilder builder = new StringBuilder(cache.getTracks().isEmpty()
+                            ? event.getClient().getWarning() + " No tracks were loaded."
+                            : event.getClient().getSuccess() + " Loaded **" + cache.getTracks().size() + "** tracks from the cache file.");
+                    if (!cache.getErrors().isEmpty()) {
+                        builder.append("\nThe following tracks could not be loaded:");
+                    }
+                    cache.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
+                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
+                    String str = builder.toString();
+                    if (str.length() > 2000) {
+                        str = str.substring(0, 1994) + " (truncated)";
+                    }
+                    m.editOriginal(FormatUtil.filter(str)).queue();
+                });
+            });
+            try {
+                bot.getCacheLoader().deleteCache(event.getGuild().getId());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return true;
+        }
+
+        private boolean tryLoadSlashDefaultPlaylist(SlashCommandEvent event, AudioHandler handler) {
+            if (!handler.playFromDefault()) {
+                return false;
+            }
+            Settings settings = event.getClient().getSettingsFor(event.getGuild());
+            handler.stopAndClear();
+            Playlist playlist = bot.getPlaylistLoader().getPlaylist(event.getGuild().getId(), settings.getDefaultPlaylist());
+            if (playlist == null) {
+                event.reply("Could not find `" + settings.getDefaultPlaylist() + ".txt` in the playlist folder.").queue();
+                return true;
+            }
+            event.reply(loadingEmoji + " Loading playlist **" + settings.getDefaultPlaylist() + "** ... (" + playlist.getItems().size() + " tracks)").queue(m -> {
+                playlist.loadTracks(bot.getPlayerManager(), at -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
+                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
+                            ? event.getClient().getWarning() + " No tracks were loaded!"
+                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks!");
+                    if (!playlist.getErrors().isEmpty()) {
+                        builder.append("\nThe following tracks could not be loaded:");
+                    }
+                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
+                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
+                    String str = builder.toString();
+                    if (str.length() > 2000) {
+                        str = str.substring(0, 1994) + " (...)";
+                    }
+                    m.editOriginal(FormatUtil.filter(str)).queue();
+                });
+            });
+            return true;
+        }
+
+        private void replySlashPlayUsage(SlashCommandEvent event) {
+            StringBuilder builder = new StringBuilder(event.getClient().getWarning() + " Play command:\n");
+            builder.append("\n`").append(event.getClient().getPrefix()).append(name).append(" <song name>` - Play the first result from YouTube");
+            builder.append("\n`").append(event.getClient().getPrefix()).append(name).append(" <URL>` - Play the specified song, playlist, or stream");
+            for (Command cmd : children) {
+                builder.append("\n`").append(event.getClient().getPrefix()).append(name).append(" ")
+                        .append(cmd.getName()).append(" ").append(cmd.getArguments()).append("` - ")
+                        .append(cmd.getHelp());
+            }
+            event.reply(builder.toString()).queue();
         }
 
 
@@ -974,23 +1003,7 @@ public class PlayCmd extends MusicCommand {
                 event.replyError("Could not find `" + event.getArgs() + ".txt`");
                 return;
             }
-            event.getChannel().sendMessage(":calling: Loading mylist **" + event.getArgs() + "**... (" + playlist.getItems().size() + " tracks)").queue(m ->
-            {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getAuthor())), () -> {
-                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                            ? event.getClient().getWarning() + " No tracks were loaded."
-                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
-                    if (!playlist.getErrors().isEmpty())
-                        builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
-                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                    String str = builder.toString();
-                    if (str.length() > 2000)
-                        str = str.substring(0, 1994) + " (truncated)";
-                    m.editMessage(FormatUtil.filter(str)).queue();
-                });
-            });
+            loadMylistForCommand(event, playlist, event.getArgs());
         }
 
         @Override
@@ -1004,23 +1017,45 @@ public class PlayCmd extends MusicCommand {
                 event.reply(event.getClient().getError() + "Could not find `" + name + ".txt`").queue();
                 return;
             }
-            event.reply(":calling: Loading mylist **" + name + "**... (" + playlist.getItems().size() + " tracks)").queue(m ->
-            {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
-                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                            ? event.getClient().getWarning() + " No tracks were loaded."
-                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
-                    if (!playlist.getErrors().isEmpty())
-                        builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
-                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                    String str = builder.toString();
-                    if (str.length() > 2000)
-                        str = str.substring(0, 1994) + " (truncated)";
-                    m.editOriginal(FormatUtil.filter(str)).queue();
-                });
-            });
+            loadMylistForSlash(event, playlist, name);
+        }
+
+        private void loadMylistForCommand(CommandEvent event, MylistLoader.Playlist playlist, String playlistName) {
+            event.getChannel().sendMessage(":calling: Loading mylist **" + playlistName + "**... (" + playlist.getItems().size() + " tracks)")
+                    .queue(m -> {
+                        AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                        playlist.loadTracks(bot.getPlayerManager(), at -> handler.addTrack(new QueuedTrack(at, event.getAuthor())), () -> {
+                            String str = buildMylistLoadResult(event.getClient().getWarning(), event.getClient().getSuccess(), playlist);
+                            m.editMessage(FormatUtil.filter(str)).queue();
+                        });
+                    });
+        }
+
+        private void loadMylistForSlash(SlashCommandEvent event, MylistLoader.Playlist playlist, String playlistName) {
+            event.reply(":calling: Loading mylist **" + playlistName + "**... (" + playlist.getItems().size() + " tracks)")
+                    .queue(m -> {
+                        AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                        playlist.loadTracks(bot.getPlayerManager(), at -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
+                            String str = buildMylistLoadResult(event.getClient().getWarning(), event.getClient().getSuccess(), playlist);
+                            m.editOriginal(FormatUtil.filter(str)).queue();
+                        });
+                    });
+        }
+
+        private String buildMylistLoadResult(String warningPrefix, String successPrefix, MylistLoader.Playlist playlist) {
+            StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
+                    ? warningPrefix + " No tracks were loaded."
+                    : successPrefix + " Loaded **" + playlist.getTracks().size() + "** tracks.");
+            if (!playlist.getErrors().isEmpty()) {
+                builder.append("\nThe following tracks could not be loaded:");
+            }
+            playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
+                    .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
+            String str = builder.toString();
+            if (str.length() > 2000) {
+                str = str.substring(0, 1994) + " (truncated)";
+            }
+            return str;
         }
     }
 

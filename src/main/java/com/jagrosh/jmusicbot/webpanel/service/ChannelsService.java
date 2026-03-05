@@ -377,6 +377,10 @@ public class ChannelsService {
      * @return List of Discord messages or null if error
      */
     public List<DiscordMessage> getChannelMessages(String channelId, Integer limit, String before, String after) {
+        return getChannelMessagesInternal(channelId, limit, before, after);
+    }
+
+    private List<DiscordMessage> getChannelMessagesInternal(String channelId, Integer limit, String before, String after) {
         List<DiscordMessage> messages = new ArrayList<>();
         
         try {

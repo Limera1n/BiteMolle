@@ -546,185 +546,67 @@ public class MusicService {
 
     private MusicStatus getCurrentStatusInternal() {
         Optional<AudioHandler> handler = getAudioHandler();
-        
-        // Check if the bot is in a voice channel in the selected guild
-        boolean inVoiceChannel = false;
-        
-        if (selectedGuildId != null && bot.getJDA() != null) {
-            net.dv8tion.jda.api.entities.Guild guild = bot.getJDA().getGuildById(selectedGuildId);
-            if (guild != null) {
-                // Get the bot's voice state
-                GuildVoiceState voiceState = guild.getSelfMember().getVoiceState();
-                // Check if the bot is in a voice channel
-                inVoiceChannel = voiceState != null && voiceState.inAudioChannel();
-            }
+        boolean inVoiceChannel = isBotInVoiceChannel();
+        if (handler.isEmpty() || handler.get().getPlayer().getPlayingTrack() == null) {
+            return buildEmptyStatus(inVoiceChannel);
         }
-        
-        // Variables for radio info that need broader scope
-        String radioLogoUrl = null;
-        String radioSongImageUrl = null;
 
-        if (handler.isPresent() && handler.get().getPlayer().getPlayingTrack() != null) {
-            AudioHandler audioHandler = handler.get();
-            AudioTrack track = audioHandler.getPlayer().getPlayingTrack();
-            AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
-            if (info == null) {
-                info = track.getInfo();
-            }
-            RequestMetadata rm = getRequestMetadata(track);
-            
-            AudioHandler.TrackType trackType = audioHandler.getTrackType(track);
-            TrackPresentationData presentation = resolveTrackPresentation(audioHandler, track, info, rm);
-            String sourceType = presentation.sourceType;
-            String source = presentation.source;
-            String thumbnailUrl = presentation.thumbnailUrl;
-            String sourceIconUrl = presentation.sourceIconUrl;
-            String localAlbum = presentation.localAlbum;
-            String localGenre = presentation.localGenre;
-            String localYear = presentation.localYear;
-            boolean isStreamFlag = presentation.isStreamFlag;
-            radioLogoUrl = presentation.radioLogoUrl;
-            radioSongImageUrl = presentation.radioSongImageUrl;
-            
-            // Get requester info
-            String requesterName = "Unknown";
-            String requesterAvatar = "";
-            if (rm != null && rm.user != null) {
-                requesterName = rm.user.username;
-                // Use the cache service to get the avatar URL
-                String cachedAvatar = avatarCacheService.getAvatarUrl(String.valueOf(rm.getOwner()));
-                if (cachedAvatar != null) {
-                    requesterAvatar = cachedAvatar;
-                } else {
-                    requesterAvatar = rm.user.avatar;
-                }
-            } else if (bot.getJDA() != null) {
-                requesterName = bot.getJDA().getSelfUser().getName();
-                requesterAvatar = bot.getJDA().getSelfUser().getEffectiveAvatarUrl();
-            }
-            
-            // Get volume
-            int volume = audioHandler.getPlayer().getVolume();
-            
-            // Prepare Spotify info if this is a Spotify track
-            Map<String, Object> spotifyInfoMap = null;
-            if (trackType == AudioHandler.TrackType.SPOTIFY) {
-                dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotInfo = 
-                    audioHandler.getSpotifyTrackInfo();
-                if (spotInfo != null) {
-                    spotifyInfoMap = new HashMap<>();
-                    spotifyInfoMap.put("trackId", spotInfo.trackId);
-                    spotifyInfoMap.put("albumName", spotInfo.albumName);
-                    spotifyInfoMap.put("albumImageUrl", spotInfo.albumImageUrl);
-                    spotifyInfoMap.put("artistName", spotInfo.artistName);
-                    spotifyInfoMap.put("releaseYear", spotInfo.releaseYear);
-                }
-            }
-            // Add Gensokyo Radio metadata if applicable
-            else if (audioHandler.isGensokyoRadioTrack(track)) {
-                try {
-                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    if (grInfo != null && grInfo.getSonginfo() != null) {
-                        // Create gensokyoInfo map similar to spotifyInfo
-                        spotifyInfoMap = new HashMap<>();
-                        
-                        // Add album, circle, and year information
-                        if (grInfo.getSonginfo().getAlbum() != null && !grInfo.getSonginfo().getAlbum().isEmpty()) {
-                            spotifyInfoMap.put("albumName", grInfo.getSonginfo().getAlbum());
-                        }
-                        
-                        if (grInfo.getSonginfo().getCircle() != null && !grInfo.getSonginfo().getCircle().isEmpty()) {
-                            spotifyInfoMap.put("circleName", grInfo.getSonginfo().getCircle());
-                        }
-                        
-                        if (grInfo.getSonginfo().getYear() != null && !grInfo.getSonginfo().getYear().isEmpty()) {
-                            spotifyInfoMap.put("releaseYear", grInfo.getSonginfo().getYear());
-                        }
-                        
-                        // Add album art URL if available
-                        if (grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null) {
-                            String albumArtUrl = grInfo.getMisc().getFullAlbumArtUrl();
-                            if (!albumArtUrl.isEmpty()) {
-                                spotifyInfoMap.put("albumImageUrl", albumArtUrl);
-                            }
-                        }
-                        
-                        // Add song time information if available
-                        if (grInfo.getSongtimes() != null) {
-                            if (grInfo.getSongtimes().getDuration() != null) {
-                                spotifyInfoMap.put("gensokyoDuration", grInfo.getSongtimes().getDuration() * 1000); // Convert to milliseconds
-                            }
-                            
-                            if (grInfo.getSongtimes().getPlayed() != null) {
-                                spotifyInfoMap.put("gensokyoPlayed", grInfo.getSongtimes().getPlayed() * 1000); // Convert to milliseconds
-                            }
-                            
-                            if (grInfo.getSongtimes().getRemaining() != null) {
-                                spotifyInfoMap.put("gensokyoRemaining", grInfo.getSongtimes().getRemaining() * 1000); // Convert to milliseconds
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("Error fetching Gensokyo Radio metadata: " + e.getMessage());
-                }
-            }
-            
-            // Extract radio country and alias from the station path if this is a radio track
-            String radioCountry = null;
-            String radioAlias = null;
-            if (trackType == AudioHandler.TrackType.RADIO) {
-                // Get the station path from RequestMetadata first
-                String stationPath = null;
-                if (rm != null && rm.hasRadioData()) {
-                    stationPath = rm.getRadioStationPath();
-                }
-                
-                // Or try to get it from AudioHandler
-                if (stationPath == null) {
-                    stationPath = audioHandler.getCurrentRadioStationPath(track);
-                }
-                
-                // Extract country and alias from the path (format: "country/alias")
-                if (stationPath != null && stationPath.contains("/")) {
-                    String[] parts = stationPath.split("/");
-                    if (parts.length >= 2) {
-                        radioCountry = parts[0];
-                        radioAlias = parts[1];
-                    }
-                }
-            }
-            
-                return new MusicStatus(
-                    info.title,
-                    info.author,
-                    info.uri,
-                    thumbnailUrl,
-                    track.getPosition(),
-                    info.length,
-                    audioHandler.getPlayer().getPlayingTrack() != null,
-                    audioHandler.getPlayer().isPaused(),
-                    !audioHandler.getQueue().isEmpty(),
-                    audioHandler.getQueue().size(),
-                    source,
-                    requesterName,
-                    requesterAvatar,
-                    volume,
-                    sourceType,
-                    inVoiceChannel,
-                    spotifyInfoMap,
-                    trackType == AudioHandler.TrackType.RADIO ? radioLogoUrl : null,
-                    trackType == AudioHandler.TrackType.RADIO ? radioSongImageUrl : null,
-                    radioCountry,
-                    radioAlias,
-                    localAlbum,
-                    localGenre,
-                    localYear,
-                    isStreamFlag,
-                    sourceIconUrl
-            );
+        AudioHandler audioHandler = handler.get();
+        AudioTrack track = audioHandler.getPlayer().getPlayingTrack();
+        AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
+        if (info == null) {
+            info = track.getInfo();
         }
-        
-        // Return empty status if no track is playing, but still include voice channel status
+        RequestMetadata rm = getRequestMetadata(track);
+        AudioHandler.TrackType trackType = audioHandler.getTrackType(track);
+        TrackPresentationData presentation = resolveTrackPresentation(audioHandler, track, info, rm);
+        RequesterData requester = resolveRequester(rm);
+        Map<String, Object> spotifyInfoMap = buildExtendedTrackInfo(audioHandler, track, trackType);
+        RadioStationData radioStationData = resolveRadioStationData(audioHandler, track, trackType, rm);
+
+        return new MusicStatus(
+                info.title,
+                info.author,
+                info.uri,
+                presentation.thumbnailUrl,
+                track.getPosition(),
+                info.length,
+                audioHandler.getPlayer().getPlayingTrack() != null,
+                audioHandler.getPlayer().isPaused(),
+                !audioHandler.getQueue().isEmpty(),
+                audioHandler.getQueue().size(),
+                presentation.source,
+                requester.name,
+                requester.avatar,
+                audioHandler.getPlayer().getVolume(),
+                presentation.sourceType,
+                inVoiceChannel,
+                spotifyInfoMap,
+                trackType == AudioHandler.TrackType.RADIO ? presentation.radioLogoUrl : null,
+                trackType == AudioHandler.TrackType.RADIO ? presentation.radioSongImageUrl : null,
+                radioStationData.country,
+                radioStationData.alias,
+                presentation.localAlbum,
+                presentation.localGenre,
+                presentation.localYear,
+                presentation.isStreamFlag,
+                presentation.sourceIconUrl
+        );
+    }
+
+    private boolean isBotInVoiceChannel() {
+        if (selectedGuildId == null || bot.getJDA() == null) {
+            return false;
+        }
+        net.dv8tion.jda.api.entities.Guild guild = bot.getJDA().getGuildById(selectedGuildId);
+        if (guild == null) {
+            return false;
+        }
+        GuildVoiceState voiceState = guild.getSelfMember().getVoiceState();
+        return voiceState != null && voiceState.inAudioChannel();
+    }
+
+    private MusicStatus buildEmptyStatus(boolean inVoiceChannel) {
         return new MusicStatus(
                 "No track playing",
                 "",
@@ -742,17 +624,125 @@ public class MusicService {
                 100,
                 "",
                 inVoiceChannel,
-                null, // spotifyInfo
-                null, // radioLogoUrl
-                null, // radioSongImageUrl
-                null, // radioCountry
-                null, // radioAlias
-                null, // localAlbum
-                null, // localGenre
-                null, // localYear
-                false, // isStream
-                null // sourceIconUrl
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null
         );
+    }
+
+    private static final class RequesterData {
+        private final String name;
+        private final String avatar;
+
+        private RequesterData(String name, String avatar) {
+            this.name = name;
+            this.avatar = avatar;
+        }
+    }
+
+    private RequesterData resolveRequester(RequestMetadata rm) {
+        if (rm != null && rm.user != null) {
+            String cachedAvatar = avatarCacheService.getAvatarUrl(String.valueOf(rm.getOwner()));
+            String avatar = cachedAvatar != null ? cachedAvatar : rm.user.avatar;
+            return new RequesterData(rm.user.username, avatar);
+        }
+        if (bot.getJDA() != null) {
+            return new RequesterData(bot.getJDA().getSelfUser().getName(), bot.getJDA().getSelfUser().getEffectiveAvatarUrl());
+        }
+        return new RequesterData("Unknown", "");
+    }
+
+    private Map<String, Object> buildExtendedTrackInfo(AudioHandler audioHandler, AudioTrack track, AudioHandler.TrackType trackType) {
+        if (trackType == AudioHandler.TrackType.SPOTIFY) {
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotInfo = audioHandler.getSpotifyTrackInfo();
+            if (spotInfo != null) {
+                Map<String, Object> spotifyInfoMap = new HashMap<>();
+                spotifyInfoMap.put("trackId", spotInfo.trackId);
+                spotifyInfoMap.put("albumName", spotInfo.albumName);
+                spotifyInfoMap.put("albumImageUrl", spotInfo.albumImageUrl);
+                spotifyInfoMap.put("artistName", spotInfo.artistName);
+                spotifyInfoMap.put("releaseYear", spotInfo.releaseYear);
+                return spotifyInfoMap;
+            }
+            return null;
+        }
+
+        if (!audioHandler.isGensokyoRadioTrack(track)) {
+            return null;
+        }
+
+        try {
+            dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+            if (grInfo == null || grInfo.getSonginfo() == null) {
+                return null;
+            }
+            Map<String, Object> infoMap = new HashMap<>();
+            if (grInfo.getSonginfo().getAlbum() != null && !grInfo.getSonginfo().getAlbum().isEmpty()) {
+                infoMap.put("albumName", grInfo.getSonginfo().getAlbum());
+            }
+            if (grInfo.getSonginfo().getCircle() != null && !grInfo.getSonginfo().getCircle().isEmpty()) {
+                infoMap.put("circleName", grInfo.getSonginfo().getCircle());
+            }
+            if (grInfo.getSonginfo().getYear() != null && !grInfo.getSonginfo().getYear().isEmpty()) {
+                infoMap.put("releaseYear", grInfo.getSonginfo().getYear());
+            }
+            if (grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null && !grInfo.getMisc().getFullAlbumArtUrl().isEmpty()) {
+                infoMap.put("albumImageUrl", grInfo.getMisc().getFullAlbumArtUrl());
+            }
+            if (grInfo.getSongtimes() != null) {
+                if (grInfo.getSongtimes().getDuration() != null) {
+                    infoMap.put("gensokyoDuration", grInfo.getSongtimes().getDuration() * 1000);
+                }
+                if (grInfo.getSongtimes().getPlayed() != null) {
+                    infoMap.put("gensokyoPlayed", grInfo.getSongtimes().getPlayed() * 1000);
+                }
+                if (grInfo.getSongtimes().getRemaining() != null) {
+                    infoMap.put("gensokyoRemaining", grInfo.getSongtimes().getRemaining() * 1000);
+                }
+            }
+            return infoMap;
+        } catch (Exception e) {
+            System.out.println("Error fetching Gensokyo Radio metadata: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static final class RadioStationData {
+        private final String country;
+        private final String alias;
+
+        private RadioStationData(String country, String alias) {
+            this.country = country;
+            this.alias = alias;
+        }
+    }
+
+    private RadioStationData resolveRadioStationData(AudioHandler audioHandler, AudioTrack track, AudioHandler.TrackType trackType, RequestMetadata rm) {
+        if (trackType != AudioHandler.TrackType.RADIO) {
+            return new RadioStationData(null, null);
+        }
+        String stationPath = null;
+        if (rm != null && rm.hasRadioData()) {
+            stationPath = rm.getRadioStationPath();
+        }
+        if (stationPath == null) {
+            stationPath = audioHandler.getCurrentRadioStationPath(track);
+        }
+        if (stationPath == null || !stationPath.contains("/")) {
+            return new RadioStationData(null, null);
+        }
+        String[] parts = stationPath.split("/");
+        if (parts.length < 2) {
+            return new RadioStationData(null, null);
+        }
+        return new RadioStationData(parts[0], parts[1]);
     }
     
     /**

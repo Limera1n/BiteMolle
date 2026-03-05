@@ -147,23 +147,7 @@ public class MylistCmd extends MusicCommand {
                 event.replyError("Could not find `" + event.getArgs() + ".txt`");
                 return;
             }
-            event.getChannel().sendMessage(":calling: Loading mylist **" + event.getArgs() + "**... (" + playlist.getItems().size() + " tracks)").queue(m ->
-            {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getAuthor())), () -> {
-                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                            ? event.getClient().getWarning() + " No tracks were loaded."
-                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
-                    if (!playlist.getErrors().isEmpty())
-                        builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
-                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                    String str = builder.toString();
-                    if (str.length() > 2000)
-                        str = str.substring(0, 1994) + " (truncated)";
-                    m.editMessage(FormatUtil.filter(str)).queue();
-                });
-            });
+            loadMylistForCommand(event, playlist, event.getArgs());
         }
 
         @Override
@@ -177,23 +161,45 @@ public class MylistCmd extends MusicCommand {
                 event.reply(event.getClient().getError() + "Could not find `" + name + ".txt`").queue();
                 return;
             }
-            event.reply(":calling: Loading mylist **" + name + "**... (" + playlist.getItems().size() + " tracks)").queue(m ->
-            {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
-                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                            ? event.getClient().getWarning() + " No tracks were loaded."
-                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
-                    if (!playlist.getErrors().isEmpty())
-                        builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
-                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                    String str = builder.toString();
-                    if (str.length() > 2000)
-                        str = str.substring(0, 1994) + " (truncated)";
-                    m.editOriginal(FormatUtil.filter(str)).queue();
-                });
-            });
+            loadMylistForSlash(event, playlist, name);
+        }
+
+        private void loadMylistForCommand(CommandEvent event, MylistLoader.Playlist playlist, String playlistName) {
+            event.getChannel().sendMessage(":calling: Loading mylist **" + playlistName + "**... (" + playlist.getItems().size() + " tracks)")
+                    .queue(m -> {
+                        AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                        playlist.loadTracks(bot.getPlayerManager(), at -> handler.addTrack(new QueuedTrack(at, event.getAuthor())), () -> {
+                            String str = buildMylistLoadResult(event.getClient().getWarning(), event.getClient().getSuccess(), playlist);
+                            m.editMessage(FormatUtil.filter(str)).queue();
+                        });
+                    });
+        }
+
+        private void loadMylistForSlash(SlashCommandEvent event, MylistLoader.Playlist playlist, String playlistName) {
+            event.reply(":calling: Loading mylist **" + playlistName + "**... (" + playlist.getItems().size() + " tracks)")
+                    .queue(m -> {
+                        AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                        playlist.loadTracks(bot.getPlayerManager(), at -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
+                            String str = buildMylistLoadResult(event.getClient().getWarning(), event.getClient().getSuccess(), playlist);
+                            m.editOriginal(FormatUtil.filter(str)).queue();
+                        });
+                    });
+        }
+
+        private String buildMylistLoadResult(String warningPrefix, String successPrefix, MylistLoader.Playlist playlist) {
+            StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
+                    ? warningPrefix + " No tracks were loaded."
+                    : successPrefix + " Loaded **" + playlist.getTracks().size() + "** tracks.");
+            if (!playlist.getErrors().isEmpty()) {
+                builder.append("\nThe following tracks could not be loaded:");
+            }
+            playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
+                    .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
+            String str = builder.toString();
+            if (str.length() > 2000) {
+                str = str.substring(0, 1994) + " (truncated)";
+            }
+            return str;
         }
     }
 

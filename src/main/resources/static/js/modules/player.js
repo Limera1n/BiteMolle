@@ -457,6 +457,19 @@ const Player = (function() {
 
     async function fetchStatusInternal() {
         try {
+            await fetchStatusInternalImpl();
+        } catch (error) {
+            console.error('Error fetching status:', error);
+            const statusElement = document.getElementById('status-message');
+            if (statusElement) {
+                statusElement.textContent = 'Error connecting to server';
+                statusElement.classList.remove('status-playing', 'status-paused', 'status-idle');
+                statusElement.classList.add('status-error');
+            }
+        }
+    }
+
+    async function fetchStatusInternalImpl() {
             // Skip work when the player view is not mounted (SPA navigation)
             if (!isPlayerViewActive()) {
                 if (progressInterval) {
@@ -1116,15 +1129,6 @@ const Player = (function() {
                     console.error('Error hiding YouTube chapters:', chapterError);
                 }
             }
-        } catch (error) {
-            console.error('Error fetching status:', error);
-            const statusElement = document.getElementById('status-message');
-            if (statusElement) {
-                statusElement.textContent = 'Error connecting to server';
-                statusElement.classList.remove('status-playing', 'status-paused', 'status-idle');
-                statusElement.classList.add('status-error');
-            }
-        }
     }
     
     // Fetch queue from the API

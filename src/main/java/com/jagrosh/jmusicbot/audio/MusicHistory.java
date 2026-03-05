@@ -98,7 +98,10 @@ public class MusicHistory {
         if (!enabled) {
             return;
         }
-        
+        addTrackInternal(track, handler);
+    }
+
+    private void addTrackInternal(AudioTrack track, AudioHandler handler) {
         try {
             AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
             if (info == null) {

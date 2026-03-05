@@ -80,6 +80,10 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     }
 
     public void init() {
+        initInternal();
+    }
+
+    private void initInternal() {
         // Initialize IPv6 rotation using LavaPlayer's official youtube-rotator extension
         if (bot.getConfig().isIPv6RotationEnabled()) {
             try {
