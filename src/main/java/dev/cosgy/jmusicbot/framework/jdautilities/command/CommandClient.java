@@ -60,12 +60,12 @@ public class CommandClient extends ListenerAdapter {
     public void onReady(ReadyEvent event) {
         this.jda = event.getJDA();
 
-        // Apply configured default presence once the gateway is ready.
-        // This replaces temporary boot presence (e.g. "Loading...") after reconnect/restart.
-        if (status != null) {
-            event.getJDA().getPresence().setStatus(status);
+        // Switch from temporary boot presence to the final configured presence.
+        OnlineStatus targetStatus = status == null ? OnlineStatus.ONLINE : status;
+        if (targetStatus == OnlineStatus.UNKNOWN) {
+            targetStatus = OnlineStatus.ONLINE;
         }
-        event.getJDA().getPresence().setActivity(activity);
+        event.getJDA().getPresence().setPresence(targetStatus, activity, false);
 
         // Register slash commands through the internal implementation.
         if (!slashCommands.isEmpty()) {

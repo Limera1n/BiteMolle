@@ -181,7 +181,9 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             this.ytDlpManager = new YtDlpManager(
                     botDir,
                     bot.getConfig().getYtDlpDenoPath(),
-                    bot.getConfig().getYtDlpCookiesPath()
+                    bot.getConfig().getYtDlpCookiesPath(),
+                    bot.getConfig().getYouTubeEmailAddress(),
+                    bot.getConfig().getYouTubePassword()
             );
             this.ytDlpPath = ytDlpManager.prepare();
             ytDlpManager.startAutoUpdate(Duration.ofHours(6));

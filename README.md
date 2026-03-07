@@ -1,11 +1,11 @@
 <h3 align="center">
 
-[![Downloads](https://img.shields.io/github/downloads/Limera1n/BiteMolle/total.svg)](https://github.com/Limera1n/BiteMolle/releases/latest)
-[![Stars](https://img.shields.io/github/stars/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/stargazers)
-[![Release](https://img.shields.io/github/release/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/releases/latest)
-[![License](https://img.shields.io/github/license/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/blob/main/LICENSE)
-[![CodeFactor](https://www.codefactor.io/repository/github/limera1n/bitemolle/badge/main)](https://www.codefactor.io/repository/github/limera1n/bitemolle/overview/main)
-[![Build and Test](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml/badge.svg)](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml)
+[![Downloads](https://img.shields.io/github/downloads/THOMZY/JMusicBot-JPtoEN/total.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
+[![Stars](https://img.shields.io/github/stars/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/stargazers)
+[![Release](https://img.shields.io/github/release/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
+[![License](https://img.shields.io/github/license/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/LICENSE)
+[![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
+[![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
 
 # JMusicBot
