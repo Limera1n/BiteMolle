@@ -137,10 +137,7 @@ public final class YtDlpManager {
     }
 
     public YtDlpResult download(String input) throws Exception {
-        FallbackPlatform platform = detectPlatform(input);
-        if (platform == FallbackPlatform.NONE) {
-            throw new IllegalArgumentException("Unsupported fallback platform for: " + input);
-        }
+        FallbackPlatform platform = requireSupportedPlatform(input);
         Path cacheDir = getCacheDir();
         Files.createDirectories(cacheDir);
 
@@ -148,11 +145,25 @@ public final class YtDlpManager {
         log.info("Downloading via yt-dlp ({}): {}", platform, url);
 
         List<String> cmd = buildDownloadCommand(platform, cacheDir, url);
-        YtDlpRunResult result = null;
+        YtDlpRunResult result = runDownloadWithRetries(cmd, platform);
+        DownloadOutput output = requireSuccessfulDownload(result);
+        Path out = resolveOutputPath(cacheDir, url, platform, output);
+        log.info("yt-dlp finished: {}", out);
+        return new YtDlpResult(out, metadataOrDefault(output.metadata, url, platform));
+    }
 
-        List<List<String>> retryExtras = retryExtrasForPlatform(platform);
-        for (List<String> extra : retryExtras) {
-            List<String> attempt = applyExtraArgsBeforeUrl(cmd, extra);
+    private FallbackPlatform requireSupportedPlatform(String input) {
+        FallbackPlatform platform = detectPlatform(input);
+        if (platform == FallbackPlatform.NONE) {
+            throw new IllegalArgumentException("Unsupported fallback platform for: " + input);
+        }
+        return platform;
+    }
+
+    private YtDlpRunResult runDownloadWithRetries(List<String> command, FallbackPlatform platform) throws Exception {
+        YtDlpRunResult result = null;
+        for (List<String> extra : retryExtrasForPlatform(platform)) {
+            List<String> attempt = applyExtraArgsBeforeUrl(command, extra);
             result = runDownloadAttempt(attempt, platform);
             if (!result.timedOut && result.exitCode == 0) {
                 break;
@@ -163,7 +174,10 @@ public final class YtDlpManager {
                     extra,
                     result.outputTail);
         }
+        return result;
+    }
 
+    private DownloadOutput requireSuccessfulDownload(YtDlpRunResult result) {
         if (result == null) {
             throw new RuntimeException("yt-dlp failed: no attempt result");
         }
@@ -174,27 +188,15 @@ public final class YtDlpManager {
             String suffix = result.outputTail.isBlank() ? "" : " tail=" + result.outputTail;
             throw new RuntimeException("yt-dlp exit code=" + result.exitCode + suffix);
         }
-
-        DownloadOutput output = result.output;
-        if (output == null) {
+        if (result.output == null) {
             throw new RuntimeException("yt-dlp failed: missing output payload");
         }
+        return result.output;
+    }
 
+    private Path resolveOutputPath(Path cacheDir, String url, FallbackPlatform platform, DownloadOutput output) throws IOException {
         if (output.lastNonEmpty == null) {
-            if (platform == FallbackPlatform.YOUTUBE) {
-                String id = tryExtractYoutubeId(url);
-                if (id != null) {
-                    Path guessWebm = cacheDir.resolve(id + ".webm");
-                    if (Files.isRegularFile(guessWebm)) {
-                        return new YtDlpResult(guessWebm, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
-                    }
-                    Path guessM4a = cacheDir.resolve(id + ".m4a");
-                    if (Files.isRegularFile(guessM4a)) {
-                        return new YtDlpResult(guessM4a, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
-                    }
-                }
-            }
-            throw new FileNotFoundException("yt-dlp output is unknown");
+            return resolveFallbackOutputPath(cacheDir, url, platform);
         }
 
         Path out = Paths.get(output.lastNonEmpty);
@@ -204,8 +206,28 @@ public final class YtDlpManager {
         if (!Files.isRegularFile(out)) {
             throw new FileNotFoundException("yt-dlp output missing: " + out);
         }
-        log.info("yt-dlp finished: {}", out);
-        return new YtDlpResult(out, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+        return out;
+    }
+
+    private Path resolveFallbackOutputPath(Path cacheDir, String url, FallbackPlatform platform) throws IOException {
+        if (platform == FallbackPlatform.YOUTUBE) {
+            String id = tryExtractYoutubeId(url);
+            if (id != null) {
+                Path guessWebm = cacheDir.resolve(id + ".webm");
+                if (Files.isRegularFile(guessWebm)) {
+                    return guessWebm;
+                }
+                Path guessM4a = cacheDir.resolve(id + ".m4a");
+                if (Files.isRegularFile(guessM4a)) {
+                    return guessM4a;
+                }
+            }
+        }
+        throw new FileNotFoundException("yt-dlp output is unknown");
+    }
+
+    private static YtDlpMetadata metadataOrDefault(YtDlpMetadata metadata, String url, FallbackPlatform platform) {
+        return metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform);
     }
 
     static List<List<String>> retryExtrasForPlatform(FallbackPlatform platform) {
