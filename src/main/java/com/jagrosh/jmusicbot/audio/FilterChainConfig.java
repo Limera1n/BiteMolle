@@ -549,7 +549,6 @@ public class FilterChainConfig {
             bandGains = new float[EqualizerPcmAudioFilter.BAND_COUNT];
         }
 
-        @SuppressWarnings("unchecked")
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("enabled", enabled);
@@ -563,7 +562,6 @@ public class FilterChainConfig {
             return m;
         }
 
-        @SuppressWarnings("unchecked")
         void fromMap(Map<String, Object> m) {
             if (m.containsKey("enabled")) enabled = Boolean.parseBoolean(m.get("enabled").toString());
             if (m.containsKey("bandGains")) {

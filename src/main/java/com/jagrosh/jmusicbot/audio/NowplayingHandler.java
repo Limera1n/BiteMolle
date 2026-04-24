@@ -21,7 +21,6 @@ import com.jagrosh.jmusicbot.entities.Pair;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
-import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
@@ -356,9 +355,6 @@ public class NowplayingHandler {
      * @param handler The audio handler
      */
     private void setupGensokyoTrackUpdateListener(long guildId, AudioTrack track, AudioHandler handler) {
-        // Store the current track title to detect changes
-        String currentTitle = track.getInfo().title;
-        
         // Check if we already have an update task for this guild
         if (gensokyoUpdateTasks.containsKey(guildId)) {
             // Cancel the existing task

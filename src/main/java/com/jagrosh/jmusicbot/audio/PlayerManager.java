@@ -41,20 +41,12 @@ import dev.lavalink.youtube.YoutubeSourceOptions;
 import dev.lavalink.youtube.clients.*;
 import dev.lavalink.youtube.clients.skeleton.Client;
 import net.dv8tion.jda.api.entities.Guild;
-import org.apache.http.HttpException;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
-import org.apache.http.conn.routing.HttpRoute;
-import org.apache.http.conn.routing.HttpRoutePlanner;
-import org.apache.http.impl.conn.DefaultRoutePlanner;
-import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -658,14 +650,12 @@ public class PlayerManager extends DefaultAudioPlayerManager {
 
     private static class YtDlpExceptionListener extends AudioEventAdapter {
         private final PlayerManager pm;
-        private final AudioPlayer player;
         private final AudioHandler handler;
         private final AtomicBoolean fallingBack = new AtomicBoolean(false);
         private final Set<String> attempted = Collections.synchronizedSet(new HashSet<>());
 
         YtDlpExceptionListener(PlayerManager pm, AudioPlayer player, AudioHandler handler) {
             this.pm = pm;
-            this.player = player;
             this.handler = handler;
         }
 

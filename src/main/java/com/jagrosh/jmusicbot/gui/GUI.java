@@ -671,7 +671,7 @@ public class GUI extends JFrame {
         int queueSize = handler.getQueue().size();
         currentVolume = handler.getPlayer().getVolume();
 
-        if (playing) {
+        if (playing && track != null) {
             String author = track.getInfo().author == null ? "Unknown" : track.getInfo().author;
             String fullTrackText = track.getInfo().title + " - " + author;
             currentTrackValue.setText(ellipsize(fullTrackText, 64));

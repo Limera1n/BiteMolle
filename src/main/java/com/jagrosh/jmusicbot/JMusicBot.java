@@ -411,7 +411,7 @@ public class JMusicBot {
 
     private static void checkPythonAvailability(Prompt prompt, Logger log) {
         try {
-            Process checkPython3 = Runtime.getRuntime().exec("python3 --version");
+            Process checkPython3 = Runtime.getRuntime().exec(new String[]{"python3", "--version"});
             int python3ExitCode = checkPython3.waitFor();
             if (python3ExitCode == 0) {
                 log.info("Python (version 3.x) is installed");
@@ -419,7 +419,7 @@ public class JMusicBot {
             }
 
             log.info("Python3 is not installed. Checking for python.");
-            Process checkPython = Runtime.getRuntime().exec("python --version");
+            Process checkPython = Runtime.getRuntime().exec(new String[]{"python", "--version"});
             BufferedReader reader = new BufferedReader(new InputStreamReader(checkPython.getInputStream()));
             String pythonVersion = reader.readLine();
             int pythonExitCode = checkPython.waitFor();

@@ -22,15 +22,12 @@ import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.interactions.modals.ModalMapping;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
-import net.dv8tion.jda.api.utils.messages.MessageEditBuilder;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static com.jagrosh.jmusicbot.audio.filter.EqualizerPcmAudioFilter.BAND_COUNT;
-import static com.jagrosh.jmusicbot.audio.filter.EqualizerPcmAudioFilter.BAND_FREQUENCIES;
 
 public class FiltersCmd extends MusicCommand {
 

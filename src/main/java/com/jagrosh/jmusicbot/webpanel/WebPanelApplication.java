@@ -18,7 +18,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.ServerSocket;
-import java.util.concurrent.CountDownLatch;
 
 @SpringBootApplication
 @EnableScheduling

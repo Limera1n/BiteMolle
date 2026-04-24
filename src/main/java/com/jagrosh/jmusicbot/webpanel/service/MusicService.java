@@ -31,7 +31,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,10 +43,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.json.JSONObject;
-
-import com.jagrosh.jmusicbot.PlayStatus;
-import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
-import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 
@@ -768,6 +763,7 @@ public class MusicService {
     /**
      * Gets the identifier for a queued track 
      */
+    @SuppressWarnings("unused")
     private String getRequesterInfo(QueuedTrack queuedTrack) {
         try {
             if (queuedTrack != null && queuedTrack.getTrack() != null && getRequestMetadata(queuedTrack.getTrack()) != null) {

@@ -23,13 +23,12 @@ import com.jagrosh.jmusicbot.playlist.PlaylistLoader.Playlist;
 import com.jagrosh.jmusicbot.queue.FairQueue;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
-import com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
-import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
@@ -48,7 +47,7 @@ import org.slf4j.LoggerFactory; // Import manquant
 import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
 
 import java.io.File; // Import pour java.io.File
-import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -58,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Handles audio playback and track management for a guild
@@ -118,8 +116,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     public TrackType getTrackType(AudioTrack track) {
         if (track == null) return TrackType.OTHER;
-        
-        RequestMetadata rm = extractRequestMetadata(track);
+
         AudioTrackInfo info = displayInfo(track);
         
         // Check for Spotify first - high priority
@@ -236,7 +233,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (trackUrl.contains("onlineradiobox.com")) {
             // Extract the path from orb URLs like: https://onlineradiobox.com/uk/capital/
             try {
-                URL url = new URL(trackUrl);
+                URL url = URI.create(trackUrl).toURL();
                 String path = url.getPath();
                 if (path.startsWith("/")) {
                     path = path.substring(1);
@@ -1035,7 +1032,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         RequestMetadata rm = prepareNowPlayingMetadata(jda, track, getRequestMetadata(), bot, trackType);
 
         EmbedBuilder eb = new EmbedBuilder();
-        eb.setColor(guild.getSelfMember().getColor());
+        eb.setColor(DiscordCompat.getMemberColor(guild.getSelfMember()));
         String artworkDiskPath = resolveLocalArtworkPath(bot, trackType, track);
 
         buildNowPlayingEmbed(eb, guild, bot, track, rm, trackType, artworkDiskPath);
@@ -1870,7 +1867,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 .setEmbeds(new EmbedBuilder()
                         .setTitle("No music is playing.")
                         .setDescription(JMusicBot.STOP_EMOJI + " " + FormatUtil.progressBar(-1) + " " + FormatUtil.volumeIcon(audioPlayer.getVolume()))
-                        .setColor(guild.getSelfMember().getColor())
+                        .setColor(DiscordCompat.getMemberColor(guild.getSelfMember()))
                         .build())
                 .build();
     }
@@ -2142,6 +2139,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param seconds The seconds to format
      * @return The formatted time string
      */
+    @SuppressWarnings("unused")
     private String formatTime(Integer seconds) {
         if (seconds == null) return "0:00";
         

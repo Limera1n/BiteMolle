@@ -554,6 +554,7 @@ public final class YtDlpManager {
         }
     }
 
+    @SuppressWarnings("unused")
     private static String pickAssetForCurrentPlatform() {
         return pickAssetForPlatform(
                 System.getProperty("os.name", ""),
