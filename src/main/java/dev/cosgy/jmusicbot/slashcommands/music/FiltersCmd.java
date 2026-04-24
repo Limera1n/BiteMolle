@@ -118,7 +118,10 @@ public class FiltersCmd extends MusicCommand {
                 case "lowpass" -> toggleFilter(fc.getLowPass(), handler);
                 case "reverb" -> toggleFilter(fc.getReverb(), handler);
                 case "equalizer" -> toggleFilter(fc.getEqualizer(), handler);
-                case "reset" -> { fc.resetAll(); handler.applyFilters(); }
+                case "reset" -> {
+                    fc.resetAll();
+                    handler.applyFilters();
+                }
                 case "edit" -> {
                     // Show select menu for choosing which filter to edit
                     ev.deferEdit().queue();

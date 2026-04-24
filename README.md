@@ -1,11 +1,11 @@
 <h3 align="center">
 
-[![Downloads](https://img.shields.io/github/downloads/THOMZY/JMusicBot-JPtoEN/total.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
-[![Stars](https://img.shields.io/github/stars/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/stargazers)
-[![Release](https://img.shields.io/github/release/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
-[![License](https://img.shields.io/github/license/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/LICENSE)
-[![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
-[![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
+[![Downloads](https://img.shields.io/github/downloads/Limera1n/BiteMolle/total.svg)](https://github.com/Limera1n/BiteMolle/releases/latest)
+[![Stars](https://img.shields.io/github/stars/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/stargazers)
+[![Release](https://img.shields.io/github/release/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/releases/latest)
+[![License](https://img.shields.io/github/license/Limera1n/BiteMolle.svg)](https://github.com/Limera1n/BiteMolle/blob/main/LICENSE)
+[![CodeFactor](https://www.codefactor.io/repository/github/Limera1n/BiteMolle/badge/main)](https://www.codefactor.io/repository/github/Limera1n/BiteMolle/overview/main)
+[![Build and Test](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml/badge.svg)](https://github.com/Limera1n/BiteMolle/actions/workflows/release.yml)
 </h3>
 
 # JMusicBot
@@ -32,7 +32,7 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 * Fixed Youtube livestreams fail at 30sec. 
 * Added the ability to queue multiple local files in a single message. ( 10 max, Discord upload limit )
 
-Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/CHANGELOG.md) to view all the updated dependencies.
+Check the [CHANGELOG](https://github.com/Limera1n/BiteMolle/blob/main/CHANGELOG.md) to view all the updated dependencies.
   
 # Bot Features :
 
@@ -56,7 +56,7 @@ This bot requires Java version 25 or higher.
 If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/).  
 To start this bot yourself, refer to the [official Jagrosh website](https://jmusicbot.com/setup/).  
 You can check the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/) too.
-You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/main/src/main/resources/reference.conf) or in release tab.  
+You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/Limera1n/BiteMolle/refs/heads/main/src/main/resources/reference.conf) or in release tab.  
 
 # Youtube cipher server :
 It becomes harder and harder to keep up with YouTube's cipher changes, as they become more frequent and complex.  
@@ -74,17 +74,17 @@ If using Docker, refer to [here](https://hub.docker.com/r/cyberrex/jmusicbot-jp)
 
 # Build the .jar on windows :
 
-* You need Java ( check [Setting up](https://github.com/THOMZY/JMusicBot-JPtoEN?tab=readme-ov-file#setting-up) ) and [Maven](https://maven.apache.org/download.cgi). - [How to install Maven](https://phoenixnap.com/kb/install-maven-windows)  
+* You need Java ( check [Setting up](https://github.com/Limera1n/BiteMolle?tab=readme-ov-file#setting-up) ) and [Maven](https://maven.apache.org/download.cgi). - [How to install Maven](https://phoenixnap.com/kb/install-maven-windows)  
 * You also need Java JDK : [Adoptium](https://adoptium.net/) OR [Oracle](https://www.oracle.com/java/technologies/downloads/?er=221886).
   
-Download this repo using Git or [download the sources](https://github.com/THOMZY/JMusicBot-JPtoEN/archive/refs/heads/develop.zip).
+Download this repo using Git or [download the sources](https://github.com/Limera1n/BiteMolle/archive/refs/heads/develop.zip).
 Open a command line window in the downloaded and unziped folder and type :  
 ```
 mvn clean package
 ```
 You will find ```JMusicBot-XXXX.XX.XX-All.jar``` in the "target" folder. 
    
-Or just download the latest working provided .jar [here](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest).  
+Or just download the latest working provided .jar [here](https://github.com/Limera1n/BiteMolle/releases/latest).  
 
 
 Because this build uses DAVE, use the recommanded launch arguments below:

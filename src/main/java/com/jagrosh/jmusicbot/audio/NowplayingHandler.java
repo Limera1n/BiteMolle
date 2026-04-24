@@ -245,7 +245,10 @@ public class NowplayingHandler {
 
     private boolean shouldUseTrackInStatus(AudioTrack track) {
         return track != null && bot.getJDA().getGuilds().stream()
-                .filter(g -> { GuildVoiceState vs = g.getSelfMember().getVoiceState(); return vs != null && vs.inAudioChannel(); })
+                .filter(g -> {
+                    GuildVoiceState vs = g.getSelfMember().getVoiceState();
+                    return vs != null && vs.inAudioChannel();
+                })
                 .limit(2).count() <= 1;
     }
 

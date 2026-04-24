@@ -202,11 +202,19 @@ public class FilterChainConfig {
         public double getRate() { return rate; }
         public void setRate(double v) { this.rate = Math.max(0.1, Math.min(v, 10.0)); }
 
-        void reset() { enabled = false; speed = 1.0; pitch = 1.0; rate = 1.0; }
+        void reset() {
+            enabled = false;
+            speed = 1.0;
+            pitch = 1.0;
+            rate = 1.0;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("speed", speed); m.put("pitch", pitch); m.put("rate", rate);
+            m.put("enabled", enabled);
+            m.put("speed", speed);
+            m.put("pitch", pitch);
+            m.put("rate", rate);
             return m;
         }
 
@@ -229,11 +237,17 @@ public class FilterChainConfig {
         public float getDepth() { return depth; }
         public void setDepth(float v) { this.depth = Math.max(0.01f, Math.min(v, 1.0f)); }
 
-        void reset() { enabled = false; frequency = 2.0f; depth = 0.5f; }
+        void reset() {
+            enabled = false;
+            frequency = 2.0f;
+            depth = 0.5f;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("frequency", frequency); m.put("depth", depth);
+            m.put("enabled", enabled);
+            m.put("frequency", frequency);
+            m.put("depth", depth);
             return m;
         }
 
@@ -255,11 +269,17 @@ public class FilterChainConfig {
         public float getDepth() { return depth; }
         public void setDepth(float v) { this.depth = Math.max(0.01f, Math.min(v, 1.0f)); }
 
-        void reset() { enabled = false; frequency = 2.0f; depth = 0.5f; }
+        void reset() {
+            enabled = false;
+            frequency = 2.0f;
+            depth = 0.5f;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("frequency", frequency); m.put("depth", depth);
+            m.put("enabled", enabled);
+            m.put("frequency", frequency);
+            m.put("depth", depth);
             return m;
         }
 
@@ -285,12 +305,21 @@ public class FilterChainConfig {
         public float getFilterWidth() { return filterWidth; }
         public void setFilterWidth(float v) { this.filterWidth = Math.max(0.0f, Math.min(v, 1000.0f)); }
 
-        void reset() { enabled = false; level = 1.0f; monoLevel = 1.0f; filterBand = 220.0f; filterWidth = 100.0f; }
+        void reset() {
+            enabled = false;
+            level = 1.0f;
+            monoLevel = 1.0f;
+            filterBand = 220.0f;
+            filterWidth = 100.0f;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("level", level); m.put("monoLevel", monoLevel);
-            m.put("filterBand", filterBand); m.put("filterWidth", filterWidth);
+            m.put("enabled", enabled);
+            m.put("level", level);
+            m.put("monoLevel", monoLevel);
+            m.put("filterBand", filterBand);
+            m.put("filterWidth", filterWidth);
             return m;
         }
 
@@ -312,11 +341,15 @@ public class FilterChainConfig {
         public double getRotationHz() { return rotationHz; }
         public void setRotationHz(double v) { this.rotationHz = Math.max(0.0, Math.min(v, 50.0)); }
 
-        void reset() { enabled = false; rotationHz = 5.0; }
+        void reset() {
+            enabled = false;
+            rotationHz = 5.0;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("rotationHz", rotationHz);
+            m.put("enabled", enabled);
+            m.put("rotationHz", rotationHz);
             return m;
         }
 
@@ -352,17 +385,27 @@ public class FilterChainConfig {
 
         void reset() {
             enabled = false;
-            sinOffset = 0f; sinScale = 1f; cosOffset = 0f; cosScale = 1f;
-            tanOffset = 0f; tanScale = 1f; offset = 0f; scale = 1f;
+            sinOffset = 0f;
+            sinScale = 1f;
+            cosOffset = 0f;
+            cosScale = 1f;
+            tanOffset = 0f;
+            tanScale = 1f;
+            offset = 0f;
+            scale = 1f;
         }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("enabled", enabled);
-            m.put("sinOffset", sinOffset); m.put("sinScale", sinScale);
-            m.put("cosOffset", cosOffset); m.put("cosScale", cosScale);
-            m.put("tanOffset", tanOffset); m.put("tanScale", tanScale);
-            m.put("offset", offset); m.put("scale", scale);
+            m.put("sinOffset", sinOffset);
+            m.put("sinScale", sinScale);
+            m.put("cosOffset", cosOffset);
+            m.put("cosScale", cosScale);
+            m.put("tanOffset", tanOffset);
+            m.put("tanScale", tanScale);
+            m.put("offset", offset);
+            m.put("scale", scale);
             return m;
         }
 
@@ -394,13 +437,21 @@ public class FilterChainConfig {
         public float getRightToRight() { return rightToRight; }
         public void setRightToRight(float v) { this.rightToRight = Math.max(0f, Math.min(v, 1f)); }
 
-        void reset() { enabled = false; leftToLeft = 1.0f; leftToRight = 0.0f; rightToLeft = 0.0f; rightToRight = 1.0f; }
+        void reset() {
+            enabled = false;
+            leftToLeft = 1.0f;
+            leftToRight = 0.0f;
+            rightToLeft = 0.0f;
+            rightToRight = 1.0f;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("enabled", enabled);
-            m.put("leftToLeft", leftToLeft); m.put("leftToRight", leftToRight);
-            m.put("rightToLeft", rightToLeft); m.put("rightToRight", rightToRight);
+            m.put("leftToLeft", leftToLeft);
+            m.put("leftToRight", leftToRight);
+            m.put("rightToLeft", rightToLeft);
+            m.put("rightToRight", rightToRight);
             return m;
         }
 
@@ -422,11 +473,15 @@ public class FilterChainConfig {
         public float getSmoothing() { return smoothing; }
         public void setSmoothing(float v) { this.smoothing = Math.max(1.0f, Math.min(v, 100.0f)); }
 
-        void reset() { enabled = false; smoothing = 20.0f; }
+        void reset() {
+            enabled = false;
+            smoothing = 20.0f;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("smoothing", smoothing);
+            m.put("enabled", enabled);
+            m.put("smoothing", smoothing);
             return m;
         }
 
@@ -449,12 +504,19 @@ public class FilterChainConfig {
         public float getWetLevel() { return wetLevel; }
         public void setWetLevel(float v) { this.wetLevel = Math.max(0.0f, Math.min(v, 1.0f)); }
 
-        void reset() { enabled = false; roomSize = 0.7f; damping = 0.5f; wetLevel = 0.3f; }
+        void reset() {
+            enabled = false;
+            roomSize = 0.7f;
+            damping = 0.5f;
+            wetLevel = 0.3f;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("enabled", enabled); m.put("roomSize", roomSize);
-            m.put("damping", damping); m.put("wetLevel", wetLevel);
+            m.put("enabled", enabled);
+            m.put("roomSize", roomSize);
+            m.put("damping", damping);
+            m.put("wetLevel", wetLevel);
             return m;
         }
 
