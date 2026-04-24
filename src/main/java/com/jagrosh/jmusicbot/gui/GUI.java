@@ -26,6 +26,8 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -37,13 +39,17 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class GUI extends JFrame {
+    private static final Logger log = LoggerFactory.getLogger(GUI.class);
     private final ConsolePanel console;
+    private PlaylistManagerPanel playlistManager;
     private Bot bot;
     private final Instant startedAt;
 
@@ -53,6 +59,8 @@ public class GUI extends JFrame {
     private final JLabel pingValue;
     private final JLabel memoryValue;
     private final JLabel logLineValue;
+    private final JLabel ffmpegValue;
+    private final JLabel ytDlpVersionValue;
     private final JLabel statusBadge;
 
     private final JComboBox<GuildSelectionItem> guildSelector;
@@ -76,11 +84,29 @@ public class GUI extends JFrame {
 
     private boolean updatingGuildSelector;
     private boolean updatingVolumeFromStatus;
+    private long lastControllerRefreshAt;
+    private String guildSelectorSnapshot = "";
+    private volatile boolean jdaSnapshotInFlight;
+    private volatile long lastJdaSnapshotRequestAt;
+    private volatile String cachedJdaStatus = "Starting";
+    private volatile String cachedGuildCount = "0";
+    private volatile String cachedPing = "-";
+    private volatile boolean cachedConnected;
+    private boolean listTargetsLoadedAfterConnect;
+    private Instant lastExternalToolsRefreshedAt;
+    private volatile boolean externalToolsSnapshotInFlight;
+
+    private static final int STATUS_REFRESH_INTERVAL_MS = 1000;
+    private static final int CONTROLLER_REFRESH_INTERVAL_MS = 3000;
+    private static final int JDA_SNAPSHOT_INTERVAL_MS = 5000;
+    private static final long GUI_SLOW_REFRESH_WARN_MS = 200;
 
     public GUI() {
         super();
         console = new ConsolePanel();
+        playlistManager = null;
         startedAt = Instant.now();
+        listTargetsLoadedAfterConnect = false;
 
         botStatusValue = new JLabel("Initializing");
         uptimeValue = new JLabel("00:00:00");
@@ -88,7 +114,10 @@ public class GUI extends JFrame {
         pingValue = new JLabel("-");
         memoryValue = new JLabel("-");
         logLineValue = new JLabel("0");
+        ffmpegValue = new JLabel("Checking");
+        ytDlpVersionValue = new JLabel("Checking");
         statusBadge = new JLabel("Initializing");
+        lastExternalToolsRefreshedAt = Instant.EPOCH;
 
         guildSelector = new JComboBox<>();
         selectedGuildStatusValue = new JLabel("No server selected");
@@ -117,15 +146,22 @@ public class GUI extends JFrame {
     
     public GUI(Bot bot) {
         this();
-        this.bot = bot;
+        setBot(bot);
     }
     
     public void setBot(Bot bot) {
         this.bot = bot;
+        if (bot != null && playlistManager == null) {
+            playlistManager = new PlaylistManagerPanel(bot);
+        }
     }
 
     public void init() {
         installLookAndFeel();
+
+        if (bot != null && playlistManager == null) {
+            playlistManager = new PlaylistManagerPanel(bot);
+        }
 
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setTitle("JMusicBot JP");
@@ -140,7 +176,7 @@ public class GUI extends JFrame {
         applyDashboardStyling();
         setupPlayerControlActions();
 
-        Timer refreshTimer = new Timer(1000, e -> refreshStatus());
+        Timer refreshTimer = new Timer(STATUS_REFRESH_INTERVAL_MS, e -> refreshStatus());
         refreshTimer.start();
         refreshStatus();
 
@@ -181,6 +217,9 @@ public class GUI extends JFrame {
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Dashboard", createDashboard());
         tabs.addTab("Console", console);
+        if (playlistManager != null) {
+            tabs.addTab("Playlist Manager", playlistManager);
+        }
         return tabs;
     }
 
@@ -191,7 +230,7 @@ public class GUI extends JFrame {
         JPanel textPanel = new JPanel();
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 
-        JLabel title = new JLabel("JMusicBot JP Control Center");
+        JLabel title = new JLabel("JMusicBot Control Center");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 24f));
         JLabel subtitle = new JLabel("Monitor runtime status and manage logs from one place");
         textPanel.add(title);
@@ -219,13 +258,15 @@ public class GUI extends JFrame {
         JPanel dashboard = new JPanel(new BorderLayout(12, 12));
         dashboard.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
-        JPanel cards = new JPanel(new GridLayout(2, 3, 12, 12));
+        JPanel cards = new JPanel(new GridLayout(2, 4, 12, 12));
         cards.add(createStatCard("Bot status", botStatusValue));
         cards.add(createStatCard("Uptime", uptimeValue));
         cards.add(createStatCard("Connected guilds", guildCountValue));
         cards.add(createStatCard("Gateway ping", pingValue));
         cards.add(createStatCard("Memory usage", memoryValue));
         cards.add(createStatCard("Console lines", logLineValue));
+        cards.add(createStatCard("ffmpeg", ffmpegValue));
+        cards.add(createStatCard("yt-dlp version", ytDlpVersionValue));
 
         JPanel center = new JPanel(new GridLayout(1, 2, 12, 12));
         center.add(createPlayerControllerCard());
@@ -746,6 +787,14 @@ public class GUI extends JFrame {
             updatingGuildSelector = true;
             guildSelector.removeAllItems();
             updatingGuildSelector = false;
+            guildSelectorSnapshot = "";
+            return;
+        }
+
+        String snapshot = bot.getJDA().getGuilds().stream()
+                .map(guild -> guild.getId() + ":" + guild.getName())
+                .collect(Collectors.joining("|"));
+        if (snapshot.equals(guildSelectorSnapshot)) {
             return;
         }
 
@@ -778,6 +827,7 @@ public class GUI extends JFrame {
             guildSelector.setEnabled(false);
         }
         updatingGuildSelector = false;
+        guildSelectorSnapshot = snapshot;
     }
 
     private Guild getSelectedGuild() {
@@ -874,46 +924,120 @@ public class GUI extends JFrame {
     }
 
     private void refreshStatus() {
-        if (bot == null) {
-            botStatusValue.setText("Initializing");
-            guildCountValue.setText("0");
-            pingValue.setText("-");
-            setStatusBadge("Starting", new Color(255, 242, 204), new Color(130, 99, 40));
-            refreshPlayerController();
-            return;
-        }
+        long started = System.nanoTime();
+        try {
+            if (bot == null) {
+                botStatusValue.setText("Initializing");
+                guildCountValue.setText("0");
+                pingValue.setText("-");
+                setStatusBadge("Starting", new Color(255, 242, 204), new Color(130, 99, 40));
+                listTargetsLoadedAfterConnect = false;
+                return;
+            }
 
-        JDA jda = bot.getJDA();
-        boolean connected = jda != null && jda.getStatus() == JDA.Status.CONNECTED;
+            JDA jda = bot.getJDA();
 
-        if (jda == null) {
-            botStatusValue.setText("Starting");
-            guildCountValue.setText("0");
-            pingValue.setText("-");
-            setStatusBadge("Starting", new Color(255, 242, 204), new Color(130, 99, 40));
-        } else {
-            botStatusValue.setText(jda.getStatus().name());
-            guildCountValue.setText(String.valueOf(jda.getGuilds().size()));
-            pingValue.setText(jda.getGatewayPing() + " ms");
-            if (connected) {
-                setStatusBadge("Connected", new Color(218, 242, 220), new Color(36, 107, 52));
+            if (jda == null) {
+                botStatusValue.setText("Starting");
+                guildCountValue.setText("0");
+                pingValue.setText("-");
+                setStatusBadge("Starting", new Color(255, 242, 204), new Color(130, 99, 40));
+                cachedJdaStatus = "Starting";
+                cachedGuildCount = "0";
+                cachedPing = "-";
+                cachedConnected = false;
+                listTargetsLoadedAfterConnect = false;
             } else {
-                setStatusBadge("Waiting", new Color(255, 242, 204), new Color(130, 99, 40));
+                requestJdaSnapshotIfNeeded(jda);
+                botStatusValue.setText(cachedJdaStatus);
+                guildCountValue.setText(cachedGuildCount);
+                pingValue.setText(cachedPing);
+                if (cachedConnected) {
+                    setStatusBadge("Connected", new Color(218, 242, 220), new Color(36, 107, 52));
+                    if (!listTargetsLoadedAfterConnect && playlistManager != null) {
+                        playlistManager.onBotConnected();
+                        listTargetsLoadedAfterConnect = true;
+                    }
+                } else {
+                    setStatusBadge("Waiting", new Color(255, 242, 204), new Color(130, 99, 40));
+                    listTargetsLoadedAfterConnect = false;
+                }
+            }
+
+            Duration uptime = Duration.between(startedAt, Instant.now());
+            long hours = uptime.toHours();
+            long minutes = uptime.toMinutesPart();
+            long seconds = uptime.toSecondsPart();
+            uptimeValue.setText(String.format("%02d:%02d:%02d", hours, minutes, seconds));
+
+            Runtime runtime = Runtime.getRuntime();
+            long usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+            long maxMb = runtime.maxMemory() / (1024 * 1024);
+            memoryValue.setText(usedMb + " / " + maxMb + " MB");
+
+            logLineValue.setText(String.valueOf(console.getLogLineCount()));
+            refreshExternalToolStatusIfNeeded();
+            maybeRefreshController();
+        } catch (Throwable t) {
+            setActionFeedback("GUI refresh warning: " + t.getClass().getSimpleName(), false);
+            log.warn("GUI refresh failed", t);
+        } finally {
+            long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+            if (elapsedMs > GUI_SLOW_REFRESH_WARN_MS) {
+                log.warn("Slow GUI refresh detected: {} ms", elapsedMs);
             }
         }
+    }
 
-        Duration uptime = Duration.between(startedAt, Instant.now());
-        long hours = uptime.toHours();
-        long minutes = uptime.toMinutesPart();
-        long seconds = uptime.toSecondsPart();
-        uptimeValue.setText(String.format("%02d:%02d:%02d", hours, minutes, seconds));
+    private void requestJdaSnapshotIfNeeded(JDA jda) {
+        long now = System.currentTimeMillis();
+        if (jdaSnapshotInFlight || now - lastJdaSnapshotRequestAt < JDA_SNAPSHOT_INTERVAL_MS) {
+            return;
+        }
+        jdaSnapshotInFlight = true;
+        lastJdaSnapshotRequestAt = now;
 
-        Runtime runtime = Runtime.getRuntime();
-        long usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
-        long maxMb = runtime.maxMemory() / (1024 * 1024);
-        memoryValue.setText(usedMb + " / " + maxMb + " MB");
+        CompletableFuture.supplyAsync(() -> {
+            JdaSnapshot snapshot = new JdaSnapshot();
+            try {
+                snapshot.status = jda.getStatus().name();
+                snapshot.guildCount = String.valueOf(jda.getGuilds().size());
+                snapshot.ping = jda.getGatewayPing() + " ms";
+                snapshot.connected = jda.getStatus() == JDA.Status.CONNECTED;
+            } catch (Throwable t) {
+                snapshot.status = "Waiting";
+                snapshot.guildCount = cachedGuildCount;
+                snapshot.ping = cachedPing;
+                snapshot.connected = false;
+            }
+            return snapshot;
+        }).whenComplete((snapshot, error) -> SwingUtilities.invokeLater(() -> {
+            try {
+                if (error == null && snapshot != null) {
+                    cachedJdaStatus = snapshot.status;
+                    cachedGuildCount = snapshot.guildCount;
+                    cachedPing = snapshot.ping;
+                    cachedConnected = snapshot.connected;
+                }
+            } finally {
+                jdaSnapshotInFlight = false;
+            }
+        }));
+    }
 
-        logLineValue.setText(String.valueOf(console.getLogLineCount()));
+    private static final class JdaSnapshot {
+        private String status;
+        private String guildCount;
+        private String ping;
+        private boolean connected;
+    }
+
+    private void maybeRefreshController() {
+        long now = System.currentTimeMillis();
+        if (now - lastControllerRefreshAt < CONTROLLER_REFRESH_INTERVAL_MS) {
+            return;
+        }
+        lastControllerRefreshAt = now;
         refreshPlayerController();
     }
 
@@ -921,6 +1045,38 @@ public class GUI extends JFrame {
         statusBadge.setText(text);
         statusBadge.setBackground(background);
         statusBadge.setForeground(foreground);
+    }
+
+    private void refreshExternalToolStatusIfNeeded() {
+        if (bot == null || bot.getPlayerManager() == null) {
+            ffmpegValue.setText("Unknown");
+            ytDlpVersionValue.setText("Unknown");
+            return;
+        }
+
+        Instant now = Instant.now();
+        if (Duration.between(lastExternalToolsRefreshedAt, now).compareTo(Duration.ofSeconds(30)) < 0) {
+            return;
+        }
+        if (externalToolsSnapshotInFlight) {
+            return;
+        }
+        lastExternalToolsRefreshedAt = now;
+        externalToolsSnapshotInFlight = true;
+
+        boolean ffmpegInstalled = bot.getPlayerManager().isFfmpegAvailable();
+        ffmpegValue.setText(ffmpegInstalled ? "Installed" : "Not detected");
+
+        CompletableFuture.supplyAsync(() -> bot.getPlayerManager().getYtDlpVersion())
+                .whenComplete((version, error) -> SwingUtilities.invokeLater(() -> {
+                    try {
+                        if (error == null) {
+                            ytDlpVersionValue.setText(version == null ? "Not detected" : version);
+                        }
+                    } finally {
+                        externalToolsSnapshotInFlight = false;
+                    }
+                }));
     }
 
     private void shutdownBotSafely() {

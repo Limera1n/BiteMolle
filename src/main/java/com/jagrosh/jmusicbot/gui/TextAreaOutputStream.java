@@ -19,14 +19,16 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 
 /**
  * @author Lawrence Dol
  */
 public class TextAreaOutputStream extends OutputStream {
+
+    public interface BacklogListener {
+        void onBacklogChanged(int pendingMessages);
+    }
 
     private final byte[] oneByte;
     private Appender appender;
@@ -70,6 +72,12 @@ public class TextAreaOutputStream extends OutputStream {
         return appender != null && appender.isPaused();
     }
 
+    public synchronized void setBacklogListener(BacklogListener listener) {
+        if (appender != null) {
+            appender.setBacklogListener(listener);
+        }
+    }
+
     @Override
     public synchronized void close() {
         appender = null;
@@ -105,8 +113,9 @@ public class TextAreaOutputStream extends OutputStream {
         private final JTextArea textArea;
         private final int maxLines;
         private final LinkedList<Integer> lengths;
-        private final List<String> values;
-        private final List<String> pausedValues;
+        private final LinkedList<String> values;
+        private final LinkedList<String> pausedValues;
+        private BacklogListener backlogListener;
 
         private int curLength;
         private boolean clear;
@@ -117,8 +126,8 @@ public class TextAreaOutputStream extends OutputStream {
             textArea = txtara;
             maxLines = maxlin;
             lengths = new LinkedList<>();
-            values = new ArrayList<>();
-            pausedValues = new ArrayList<>();
+            values = new LinkedList<>();
+            pausedValues = new LinkedList<>();
 
             curLength = 0;
             clear = false;
@@ -127,11 +136,17 @@ public class TextAreaOutputStream extends OutputStream {
         }
 
         private synchronized void append(String val) {
-            if (paused) {
-                pausedValues.add(val);
+            if (val == null || val.isEmpty()) {
                 return;
             }
+            if (paused) {
+                pausedValues.add(val);
+                notifyBacklogChanged();
+                return;
+            }
+
             values.add(val);
+            notifyBacklogChanged();
             if (queue) {
                 queue = false;
                 EventQueue.invokeLater(this);
@@ -144,6 +159,7 @@ public class TextAreaOutputStream extends OutputStream {
             lengths.clear();
             values.clear();
             pausedValues.clear();
+            notifyBacklogChanged();
             if (queue) {
                 queue = false;
                 EventQueue.invokeLater(this);
@@ -158,6 +174,7 @@ public class TextAreaOutputStream extends OutputStream {
             if (!pause && !pausedValues.isEmpty()) {
                 values.addAll(pausedValues);
                 pausedValues.clear();
+                notifyBacklogChanged();
                 if (queue) {
                     queue = false;
                     EventQueue.invokeLater(this);
@@ -169,12 +186,36 @@ public class TextAreaOutputStream extends OutputStream {
             return paused;
         }
 
+        private synchronized void setBacklogListener(BacklogListener listener) {
+            this.backlogListener = listener;
+            notifyBacklogChanged();
+        }
+
+        private void notifyBacklogChanged() {
+            BacklogListener listener = backlogListener;
+            if (listener == null) {
+                return;
+            }
+            int backlogSize = values.size() + pausedValues.size();
+            if (SwingUtilities.isEventDispatchThread()) {
+                listener.onBacklogChanged(backlogSize);
+            } else {
+                SwingUtilities.invokeLater(() -> listener.onBacklogChanged(backlogSize));
+            }
+        }
+
         @Override
         public synchronized void run() {
+            final int maxBatchMessages = 200;
+            final int maxBatchChars = 64 * 1024;
             if (clear) {
                 textArea.setText("");
             }
-            for (String val : values) {
+
+            int processedMessages = 0;
+            int processedChars = 0;
+            while (!values.isEmpty() && processedMessages < maxBatchMessages && processedChars < maxBatchChars) {
+                String val = values.removeFirst();
                 curLength += val.length();
                 if (val.endsWith(EOL1) || val.endsWith(EOL2)) {
                     if (lengths.size() >= maxLines) {
@@ -184,10 +225,17 @@ public class TextAreaOutputStream extends OutputStream {
                     curLength = 0;
                 }
                 textArea.append(val);
+                processedMessages++;
+                processedChars += val.length();
             }
-            values.clear();
+
             clear = false;
-            queue = true;
+            notifyBacklogChanged();
+            if (values.isEmpty()) {
+                queue = true;
+            } else {
+                EventQueue.invokeLater(this);
+            }
         }
     }
 }

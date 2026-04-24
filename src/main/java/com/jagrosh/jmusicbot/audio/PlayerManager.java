@@ -22,7 +22,9 @@ import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
+import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.source.nico.NicoAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.container.MediaContainerRegistry;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -49,8 +51,11 @@ import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -60,7 +65,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -72,7 +80,11 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     private final Bot bot;
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private Path ytDlpPath;
+    private volatile String ytDlpVersion;
+    private volatile boolean ffmpegAvailable;
+    private volatile boolean ffprobeAvailable;
     private YtDlpManager ytDlpManager;
+    private ExecutorService ytDlpFallbackExecutor;
     private AbstractRoutePlanner ipv6RoutePlanner;
 
     public PlayerManager(Bot bot) {
@@ -86,6 +98,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     private void initInternal() {
         initIpv6Rotation();
         initYtDlpFallback();
+        verifyFfmpegAvailability();
 
         if (bot.getConfig().isNicoNicoEnabled()) {
             registerSourceManager(
@@ -135,7 +148,18 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         registerSourceManager(youtubeSource);
 
         TransformativeAudioSourceManager.createTransforms(bot.getConfig().getTransforms()).forEach(this::registerSourceManager);
-        AudioSourceManagers.registerRemoteSources(this);
+
+        // Register HttpAudioSourceManager manually with connection reuse disabled.
+        // Without this, LavaPlayer reuses stale TCP connections from its pool: Discord CDN
+        // closes idle connections server-side, causing random SocketTimeoutException on reuse.
+        HttpAudioSourceManager httpSource = new HttpAudioSourceManager(MediaContainerRegistry.DEFAULT_REGISTRY);
+        httpSource.configureBuilder(builder -> {
+            builder.setConnectionReuseStrategy((response, context) -> false);
+            builder.setKeepAliveStrategy((response, context) -> -1);
+        });
+        registerSourceManager(httpSource);
+
+        AudioSourceManagers.registerRemoteSources(this, MediaContainerRegistry.DEFAULT_REGISTRY);
         AudioSourceManagers.registerLocalSource(this);
 
         if (getConfiguration().getOpusEncodingQuality() != 10) {
@@ -147,6 +171,9 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             logger.debug("ResamplingQuality is {} (not HIGH), setting quality to HIGH.", getConfiguration().getResamplingQuality().name());
             getConfiguration().setResamplingQuality(AudioConfiguration.ResamplingQuality.HIGH);
         }
+
+        // Enable filter hot-swap so filters can be applied/changed on a playing track
+        getConfiguration().setFilterHotSwapEnabled(true);
         
         // Configure IPv6 rotation for all HTTP-based source managers
         configureIPv6Rotation();
@@ -186,12 +213,105 @@ public class PlayerManager extends DefaultAudioPlayerManager {
                     bot.getConfig().getYouTubePassword()
             );
             this.ytDlpPath = ytDlpManager.prepare();
+            this.ytDlpVersion = probeYtDlpVersion();
             ytDlpManager.startAutoUpdate(Duration.ofHours(6));
+            this.ytDlpFallbackExecutor = Executors.newFixedThreadPool(3, r -> {
+                Thread t = new Thread(r, "yt-dlp-fallback");
+                t.setDaemon(true);
+                return t;
+            });
             logger.info("yt-dlp ready at {}", ytDlpPath);
+            if (ytDlpVersion != null) {
+                logger.info("yt-dlp version detected: {}", ytDlpVersion);
+            }
         } catch (Exception e) {
             logger.error("Failed to initialize yt-dlp. YouTube fallback is disabled.", e);
             this.ytDlpPath = null;
             this.ytDlpManager = null;
+            this.ytDlpVersion = null;
+            this.ytDlpFallbackExecutor = null;
+        }
+    }
+
+    private void verifyFfmpegAvailability() {
+        boolean ffmpegOk = isCommandAvailable("ffmpeg");
+        boolean ffprobeOk = isCommandAvailable("ffprobe");
+        this.ffmpegAvailable = ffmpegOk;
+        this.ffprobeAvailable = ffprobeOk;
+
+        if (ffmpegOk && ffprobeOk) {
+            logger.info("Detected ffmpeg / ffprobe executables.");
+        } else if (ffmpegOk) {
+            logger.warn("ffmpeg detected, but ffprobe is missing.");
+        } else if (ffprobeOk) {
+            logger.warn("ffprobe detected, but ffmpeg is missing.");
+        } else {
+            logger.warn("Neither ffmpeg nor ffprobe was detected on PATH.");
+        }
+    }
+
+    private boolean isCommandAvailable(String command) {
+        try {
+            Process process = new ProcessBuilder(command, "-version")
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean isFfmpegAvailable() {
+        return ffmpegAvailable;
+    }
+
+    public boolean isFfprobeAvailable() {
+        return ffprobeAvailable;
+    }
+
+    public String getYtDlpVersion() {
+        String latest = probeYtDlpVersion();
+        if (latest != null) {
+            ytDlpVersion = latest;
+        }
+        return ytDlpVersion;
+    }
+
+    private String probeYtDlpVersion() {
+        if (ytDlpPath == null || !Files.isRegularFile(ytDlpPath)) {
+            return null;
+        }
+        try {
+            Process process = new ProcessBuilder(ytDlpPath.toString(), "--version")
+                    .redirectErrorStream(true)
+                    .start();
+
+            String lastNonEmpty = null;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String trimmed = line.trim();
+                    if (!trimmed.isEmpty()) {
+                        lastNonEmpty = trimmed;
+                    }
+                }
+            }
+
+            if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            }
+            if (lastNonEmpty != null) {
+                return lastNonEmpty;
+            }
+            return process.exitValue() == 0 ? ytDlpVersion : null;
+        } catch (Exception ignored) {
+            return null;
         }
     }
     
@@ -301,68 +421,74 @@ public class PlayerManager extends DefaultAudioPlayerManager {
                                      String identifier,
                                      AudioLoadResultHandler handler,
                                      FriendlyException cause) {
-        if (ytDlpManager == null) {
+        if (ytDlpManager == null || ytDlpFallbackExecutor == null) {
             handler.loadFailed(cause != null ? cause : new FriendlyException("yt-dlp not initialized", FriendlyException.Severity.SUSPICIOUS, null));
             return;
         }
 
         FallbackPlatform platform = ytDlpManager.detectPlatform(identifier);
-        logger.warn("{} load failed. Falling back to yt-dlp: {}", platform, identifier);
-        try {
-            YtDlpResult result = ytDlpManager.download(identifier);
-            Path out = result.file();
-            if (out == null || !Files.isRegularFile(out)) {
-                throw new IllegalStateException("yt-dlp output not found: " + out);
+        logger.warn("{} load failed. Falling back to yt-dlp (async): {}", platform, identifier);
+
+        // Run the blocking yt-dlp download on a dedicated thread pool so the
+        // LavaPlayer OrderedExecutor thread is freed immediately, allowing other
+        // queued tracks for this guild to load in parallel.
+        ytDlpFallbackExecutor.submit(() -> {
+            try {
+                YtDlpResult result = ytDlpManager.download(identifier);
+                Path out = result.file();
+                if (out == null || !Files.isRegularFile(out)) {
+                    throw new IllegalStateException("yt-dlp output not found: " + out);
+                }
+                super.loadItemOrdered(orderingKey, out.toAbsolutePath().toString(), new AudioLoadResultHandler() {
+                    @Override
+                    public void trackLoaded(AudioTrack track) {
+                        applyYtDlpMetadata(track, result);
+                        try {
+                            handler.trackLoaded(track);
+                        } catch (Exception e) {
+                            logger.error("Handler trackLoaded failed", e);
+                        }
+                    }
+
+                    @Override
+                    public void playlistLoaded(AudioPlaylist playlist) {
+                        if (!playlist.getTracks().isEmpty()) {
+                            AudioTrack t = playlist.getTracks().get(0);
+                            applyYtDlpMetadata(t, result);
+                        }
+                        try {
+                            handler.playlistLoaded(playlist);
+                        } catch (Exception e) {
+                            logger.error("Handler playlistLoaded failed", e);
+                        }
+                    }
+
+                    @Override
+                    public void noMatches() {
+                        handler.noMatches();
+                    }
+
+                    @Override
+                    public void loadFailed(FriendlyException exception) {
+                        handler.loadFailed(exception);
+                    }
+                });
+            } catch (Exception ex) {
+                logger.error("yt-dlp fallback failed: {}", ex.toString());
+                String platformLabel = platform == null ? "Unknown" : platform.name();
+                if (cause != null) {
+                    handler.loadFailed(new FriendlyException(
+                            platformLabel + " load failed and yt-dlp fallback also failed: " + ex.getMessage(),
+                            FriendlyException.Severity.SUSPICIOUS,
+                            cause));
+                } else {
+                    handler.loadFailed(new FriendlyException(
+                            "No matches and yt-dlp fallback failed: " + ex.getMessage(),
+                            FriendlyException.Severity.SUSPICIOUS,
+                            ex));
+                }
             }
-            super.loadItemOrdered(orderingKey, out.toAbsolutePath().toString(), new AudioLoadResultHandler() {
-                @Override
-                public void trackLoaded(AudioTrack track) {
-                    applyYtDlpMetadata(track, result);
-                    try {
-                        handler.trackLoaded(track);
-                    } catch (Exception e) {
-                        logger.error("Handler trackLoaded failed", e);
-                    }
-                }
-
-                @Override
-                public void playlistLoaded(AudioPlaylist playlist) {
-                    if (!playlist.getTracks().isEmpty()) {
-                        AudioTrack t = playlist.getTracks().get(0);
-                        applyYtDlpMetadata(t, result);
-                    }
-                    try {
-                        handler.playlistLoaded(playlist);
-                    } catch (Exception e) {
-                        logger.error("Handler playlistLoaded failed", e);
-                    }
-                }
-
-                @Override
-                public void noMatches() {
-                    handler.noMatches();
-                }
-
-                @Override
-                public void loadFailed(FriendlyException exception) {
-                    handler.loadFailed(exception);
-                }
-            });
-        } catch (Exception ex) {
-            logger.error("yt-dlp fallback failed: {}", ex.toString());
-            String platformLabel = platform == null ? "Unknown" : platform.name();
-            if (cause != null) {
-                handler.loadFailed(new FriendlyException(
-                        platformLabel + " load failed and yt-dlp fallback also failed: " + ex.getMessage(),
-                        FriendlyException.Severity.SUSPICIOUS,
-                        cause));
-            } else {
-                handler.loadFailed(new FriendlyException(
-                        "No matches and yt-dlp fallback failed: " + ex.getMessage(),
-                        FriendlyException.Severity.SUSPICIOUS,
-                        ex));
-            }
-        }
+        });
     }
 
     /**

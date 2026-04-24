@@ -502,4 +502,24 @@ public class MusicController {
         }
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/filters")
+    public ResponseEntity<Map<String, Object>> getFilters() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("filters", musicService.getFilters());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/filters")
+    public ResponseEntity<Map<String, Object>> setFilters(@RequestBody Map<String, Object> config) {
+        boolean success = musicService.setFilters(config);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        response.put("message", success ? "Filters updated" : "Failed to update filters");
+        if (success) {
+            response.put("filters", musicService.getFilters());
+        }
+        return ResponseEntity.ok(response);
+    }
 } 

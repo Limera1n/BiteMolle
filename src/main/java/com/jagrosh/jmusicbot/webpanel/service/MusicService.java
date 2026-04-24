@@ -569,8 +569,8 @@ public class MusicService {
                 info.author,
                 info.uri,
                 presentation.thumbnailUrl,
-                track.getPosition(),
-                info.length,
+            audioHandler.getDisplayTrackPosition(track),
+            audioHandler.getDisplayTrackDuration(track),
                 audioHandler.getPlayer().getPlayingTrack() != null,
                 audioHandler.getPlayer().isPaused(),
                 !audioHandler.getQueue().isEmpty(),
@@ -590,7 +590,8 @@ public class MusicService {
                 presentation.localGenre,
                 presentation.localYear,
                 presentation.isStreamFlag,
-                presentation.sourceIconUrl
+                presentation.sourceIconUrl,
+                audioHandler.getPlaybackRate()
         );
     }
 
@@ -633,7 +634,8 @@ public class MusicService {
                 null,
                 null,
                 false,
-                null
+                null,
+                1.0
         );
     }
 
@@ -1109,7 +1111,7 @@ public class MusicService {
             AudioTrack track = audioHandler.getPlayer().getPlayingTrack();
             
             if (track != null && track.isSeekable()) {
-                track.setPosition(position);
+                track.setPosition(audioHandler.toSourceTrackPosition(position));
                 return true;
             }
         }
@@ -1444,6 +1446,25 @@ public class MusicService {
             com.jagrosh.jmusicbot.settings.Settings settings = bot.getSettingsManager().getSettings(guild);
             settings.setVolume(volume);
             
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public Map<String, Object> getFilters() {
+        Optional<AudioHandler> handler = getAudioHandler();
+        if (handler.isEmpty()) return Map.of();
+        return handler.get().getFilterChain().toMap();
+    }
+
+    public boolean setFilters(Map<String, Object> config) {
+        Optional<AudioHandler> handler = getAudioHandler();
+        if (handler.isEmpty()) return false;
+        try {
+            handler.get().getFilterChain().fromMap(config);
+            handler.get().applyFilters();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
